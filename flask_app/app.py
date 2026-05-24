@@ -217,7 +217,7 @@ def edit_product(id):
     _sync_product_to_pinecone(product)
     return redirect(url_for('admin'))
 
-@app.route('/delete-product/<int:id>')
+@app.route('/delete-product/<int:id>', methods=['POST'])
 @token_required
 def delete_product(id):
     product = Product.query.get_or_404(id)
