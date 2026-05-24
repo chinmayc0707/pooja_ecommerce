@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pooja Ecommerce | Divine Essentials for Every Home</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --colors-primary: #FF5C00;
+            --colors-primary-deep: #CC4A00;
+            --colors-sunshine-700: #FF8C00;
+            --colors-sunshine-500: #FFA500;
+            --colors-yellow-saturated: #FFD700;
+            --colors-cream: #FFF9E5;
+            --colors-cream-soft: #FFFCF2;
+            --colors-beige-deep: #E5DCC3;
+            --colors-canvas: #FFFFFF;
+            --colors-hairline-soft: #EEEEEE;
+            --colors-hairline-strong: #DDDDDD;
+            --colors-ink: #1A1A1A;
+            --colors-ink-tint: #333333;
+            --colors-slate: #666666;
+            --colors-on-dark: #FFFFFF;
+            --rounded-md: 8px;
+            --rounded-lg: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--colors-canvas); color: var(--colors-ink); line-height: 1.55; }
+        h1, h2, h3, .display-serif { font-family: 'Playfair Display', serif; font-weight: 400; letter-spacing: -0.5px; }
+        nav { position: sticky; top: 0; height: 64px; background: var(--colors-canvas); border-bottom: 1px solid var(--colors-hairline-soft); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 100; }
+        .logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; text-decoration: none; color: var(--colors-ink); }
+        .nav-links { display: flex; gap: 24px; align-items: center; list-style: none; }
+        .nav-links a { text-decoration: none; color: var(--colors-slate); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--colors-primary); }
+        
+        .cart-btn { 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            background: transparent; 
+            padding: 8px 16px; 
+            border-radius: var(--rounded-md); 
+            border: 2px solid #FF5C00;
+            color: #74706B;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .cart-btn:hover { 
+            background-color: #FF5C00 !important; 
+            color: #FFFFFF !important; 
+        }
+        .cart-icon { width: 18px; height: 18px; stroke: currentColor; }
+        .cart-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #FF5C00;
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn-primary { background: var(--colors-primary); color: var(--colors-on-dark); padding: 10px 20px; border-radius: var(--rounded-md); text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.2s; border: none; cursor: pointer; }
+        .btn-primary:hover { background: var(--colors-primary-deep); }
+        .hero { display: grid; grid-template-columns: 1fr 1fr; min-height: 80vh; align-items: center; padding: 0 32px; gap: 64px; max-width: 1280px; margin: 0 auto; }
+        .hero-content h1 { font-size: 84px; line-height: 1.05; margin-bottom: 24px; color: var(--colors-ink); }
+        .hero-content p { font-size: 18px; color: var(--colors-ink-tint); margin-bottom: 32px; max-width: 500px; }
+        .hero-image { width: 100%; height: 600px; border-radius: var(--rounded-lg); background: linear-gradient(135deg, var(--colors-sunshine-700) 0%, var(--colors-primary) 100%); background-image: url('https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000'); background-size: cover; background-position: center; box-shadow: 0 12px 24px rgba(0,0,0,0.1); }
+        .section { padding: 96px 32px; max-width: 1280px; margin: 0 auto; }
+        .section-header { text-align: center; margin-bottom: 64px; }
+        .section-header h2 { font-size: 52px; margin-bottom: 16px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+        .card { background: var(--colors-canvas); border: 1px solid var(--colors-hairline-soft); border-radius: var(--rounded-lg); padding: 32px; transition: transform 0.2s, box-shadow 0.2s; display: flex; flex-direction: column; }
+        .card:hover { transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
+        .card-cream { background: var(--colors-cream); border: 1px solid var(--colors-beige-deep); }
+        .card h3 { font-size: 28px; margin-bottom: 12px; }
+        .card p { color: var(--colors-slate); font-size: 16px; margin-bottom: 20px; }
+        .card .price { font-family: 'Inter', sans-serif; font-weight: 600; color: var(--colors-ink); margin-bottom: 20px; font-size: 18px; }
+        .sunset-stripe { height: 40px; width: 100%; background: linear-gradient(to right, var(--colors-primary), var(--colors-sunshine-700), var(--colors-sunshine-500), var(--colors-yellow-saturated), var(--colors-cream)); margin-top: 96px; }
+        footer { background: var(--colors-cream); padding: 64px 32px; text-align: center; color: var(--colors-ink); }
+        .footer-links { display: flex; justify-content: center; gap: 32px; margin-bottom: 32px; list-style: none; }
+        .footer-links a { color: var(--colors-primary); text-decoration: none; font-size: 14px; font-weight: 500; }
+        @media (max-width: 1024px) { .hero { grid-template-columns: 1fr; text-align: center; padding-top: 64px; } .hero-content h1 { font-size: 64px; } .hero-content p { margin: 0 auto 32px; } .hero-image { height: 400px; } }
+        @media (max-width: 480px) { .hero-content h1 { font-size: 40px; } .nav-links { display: none; } }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/" class="logo">POOJA ECOMMERCE_</a>
+        <ul class="nav-links">
+            <li><a href="#brass-items">Brass Items</a></li>
+            <li><a href="#incense">Incense & Fragrance</a></li>
+            <li><a href="#fragrance">Fragrances</a></li>
+            <li><a href="/login" style="color: var(--colors-primary); font-weight: 600;">Login</a></li>
+            <li>
+                <a href="/cart" class="cart-btn">
+                    <svg class="cart-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <span>Cart</span>
+                    <span class="cart-badge" id="cart-count">{{ cart_count }}</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+    <header class="hero">
+        <div class="hero-content">
+            <h1>Divine Purity. In your home.</h1>
+            <p>Elevate your spiritual practice with our curated collection of authentic pooja materials. From handcrafted brass to pure organic incense.</p>
+            <div style="display: flex; gap: 16px; justify-content: flex-start; margin-top: 10px;">
+                <a href="#brass-items" class="btn-primary" style="background: var(--colors-primary); color: white; padding: 14px 28px; font-size: 16px;">Shop Collections</a>
+                <a href="#" class="btn-primary" style="background: transparent; color: var(--colors-ink); border: 1px solid var(--colors-hairline-strong); padding: 14px 28px; font-size: 16px;">View Lookbook</a>
+            </div>
+        </div>
+        <div class="hero-image"></div>
+    </header>
+
+    {% for category, products in categorized_products.items() %}
+    <section class="section" id="{{ category.lower().replace(' ', '-') }}">
+        <div class="section-header">
+            <h2>{{ category }}</h2>
+            <p>Pure, Authentic, and Hand-selected {{ category }} for your daily rituals.</p>
+        </div>
+        <div class="grid">
+            {% for product in products %}
+            <div class="card {{ 'card-cream' if loop.index % 2 == 0 }}">
+                <h3>{{ product.name }}</h3>
+                <p>{{ product.description }}</p>
+                <div class="price">₹{{ "%.2f"|format(product.price) }}</div>
+                <button data-product-id="{{ product.id }}" onclick="addToCart(this)" class="btn-primary" style="text-align: center;">Add to Cart</button>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+
+    <div class="sunset-stripe"></div>
+    <footer>
+        <ul class="footer-links">
+            <li><a href="#">Shipping</a></li>
+            <li><a href="#">Authenticity Guarantee</a></li>
+            <li><a href="#">Bulk Orders</a></li>
+            <li><a href="#">Contact Us</a></li>
+        </ul>
+        <p style="font-size: 12px; color: var(--colors-slate);">© 2026 Pooja Ecommerce. Bringing divinity to every doorstep.</p>
+    </footer>
+
+    <script>
+        async function addToCart(button) {
+            const productId = button.getAttribute('data-product-id');
+            const originalText = button.innerText;
+            
+            try {
+                const response = await fetch(`/add_to_cart/${productId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Update button text
+                    button.innerText = 'Added!';
+                    button.style.background = 'var(--colors-primary-deep)';
+                    
+                    // Update cart badge count
+                    const badge = document.getElementById('cart-count');
+                    if (badge) {
+                        badge.innerText = data.cart_count;
+                    }
+                    
+                    setTimeout(() => {
+                        button.innerText = originalText;
+                        button.style.background = 'var(--colors-primary)';
+                    }, 1500);
+                } else {
+                    alert('Failed to add item to cart. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            }
+        }
+    </script>
+</body>
+</html>

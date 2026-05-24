@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login | Pooja Ecommerce</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --colors-primary: #FF5C00;
+            --colors-primary-deep: #CC4A00;
+            --colors-cream: #FFF9E5;
+            --colors-beige-deep: #E5DCC3;
+            --colors-canvas: #FFFFFF;
+            --colors-ink: #1A1A1A;
+            --colors-slate: #666666;
+            --colors-on-dark: #FFFFFF;
+            --rounded-md: 8px;
+            --rounded-lg: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--colors-cream); 
+            color: var(--colors-ink); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh;
+            margin: 0;
+        }
+        .login-card { 
+            background: var(--colors-canvas); 
+            padding: 48px; 
+            border-radius: var(--rounded-lg); 
+            box-shadow: 0 12px 24px rgba(0,0,0,0.05); 
+            width: 100%; 
+            max-width: 400px;
+            border: 1px solid var(--colors-beige-deep);
+        }
+        .login-card h1 { 
+            font-family: 'Playfair Display', serif; 
+            font-size: 28px; 
+            margin-bottom: 32px; 
+            text-align: center;
+        }
+        .form-group { margin-bottom: 24px; }
+        .form-group label { 
+            display: block; 
+            font-size: 14px; 
+            font-weight: 500; 
+            margin-bottom: 8px; 
+            color: var(--colors-slate);
+        }
+        .form-group input { 
+            width: 100%; 
+            padding: 12px; 
+            border: 1px solid var(--colors-beige-deep); 
+            border-radius: var(--rounded-md); 
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+        }
+        .btn-login { 
+            width: 100%; 
+            background: var(--colors-primary); 
+            color: var(--colors-on-dark); 
+            padding: 14px; 
+            border-radius: var(--rounded-md); 
+            border: none; 
+            font-weight: 600; 
+            cursor: pointer; 
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .btn-login:hover { background: var(--colors-primary-deep); }
+        .error-msg { 
+            background: #fee2e2; 
+            color: #b91c1c; 
+            padding: 12px; 
+            border-radius: var(--rounded-md); 
+            font-size: 13px; 
+            margin-bottom: 24px; 
+            text-align: center;
+        }
+        .footer-link { 
+            text-align: center; 
+            margin-top: 24px; 
+            font-size: 14px; 
+            color: var(--colors-slate);
+        }
+        .footer-link a { color: var(--colors-primary); text-decoration: none; font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h1>Login</h1>
+        {% if error %}
+        <div class="error-msg">{{ error }}</div>
+        {% endif %}
+        <form method="POST">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password"> password</label>
+                <input type="text" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn-login">Login</button>
+        </form>
+        <div class="footer-link">
+            <p>Don't have an account? <a href="/register">Register here</a></p>
+        </div>
+    </div>
+</body>
+</html>

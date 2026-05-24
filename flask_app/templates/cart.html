@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Cart | Pooja Ecommerce</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --colors-primary: #FF5C00;
+            --colors-primary-deep: #CC4A00;
+            --colors-cream: #FFF9E5;
+            --colors-beige-deep: #E5DCC3;
+            --colors-canvas: #FFFFFF;
+            --colors-hairline-soft: #EEEEEE;
+            --colors-ink: #1A1A1A;
+            --colors-slate: #666666;
+            --colors-on-dark: #FFFFFF;
+            --rounded-md: 8px;
+            --rounded-lg: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--colors-canvas); color: var(--colors-ink); line-height: 1.6; }
+        
+        nav { position: sticky; top: 0; height: 64px; background: var(--colors-canvas); border-bottom: 1px solid var(--colors-hairline-soft); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 100; }
+        .logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; text-decoration: none; color: var(--colors-ink); }
+        .nav-links { display: flex; gap: 24px; list-style: none; }
+        .nav-links a { text-decoration: none; color: var(--colors-slate); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--colors-primary); }
+
+        .container { max-width: 1000px; margin: 64px auto; padding: 0 32px; }
+        h1 { font-family: 'Playfair Display', serif; font-size: 42px; margin-bottom: 40px; text-align: center; }
+
+        .cart-wrapper { display: grid; grid-template-columns: 1fr 350px; gap: 48px; align-items: start; }
+        
+        .cart-table { width: 100%; border-collapse: collapse; }
+        .cart-table th { text-align: left; padding: 16px; border-bottom: 2px solid var(--colors-hairline-soft); color: var(--colors-slate); font-size: 14px; font-weight: 500; }
+        .cart-table td { padding: 24px 16px; border-bottom: 1px solid var(--colors-hairline-soft); vertical-align: middle; }
+        .product-info { display: flex; flex-direction: column; }
+        .product-info strong { font-size: 16px; color: var(--colors-ink); }
+        .product-info span { font-size: 13px; color: var(--colors-slate); }
+        
+        .remove-btn { color: #ff0000; text-decoration: none; font-size: 13px; font-weight: 600; transition: opacity 0.2s; }
+        .remove-btn:hover { opacity: 0.7; }
+
+        .summary-card { background: var(--colors-cream); padding: 32px; border-radius: var(--rounded-lg); border: 1px solid var(--colors-beige-deep); position: sticky; top: 100px; }
+        .summary-card h3 { font-family: 'Playfair Display', serif; font-size: 24px; margin-bottom: 24px; }
+        .summary-row { display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 15px; }
+        .summary-total { display: flex; justify-content: space-between; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--colors-beige-deep); font-weight: 600; font-size: 20px; }
+        
+        .btn-checkout { width: 100%; background: var(--colors-primary); color: var(--colors-on-dark); padding: 16px; border-radius: var(--rounded-md); border: none; font-weight: 600; cursor: pointer; font-size: 16px; margin-top: 24px; transition: background 0.2s; }
+        .btn-checkout:hover { background: var(--colors-primary-deep); }
+        .btn-clear { width: 100%; background: transparent; color: var(--colors-slate); border: none; font-size: 13px; cursor: pointer; margin-top: 16px; text-decoration: underline; }
+
+        .empty-cart { text-align: center; padding: 64px 0; }
+        .empty-cart p { font-size: 18px; color: var(--colors-slate); margin-bottom: 24px; }
+        .btn-back { background: var(--colors-primary); color: white; padding: 12px 24px; border-radius: var(--rounded-md); text-decoration: none; font-weight: 500; }
+
+        @media (max-width: 850px) {
+            .cart-wrapper { grid-template-columns: 1fr; }
+            .summary-card { position: static; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/" class="logo">POOJA ECOMMERCE_</a>
+        <ul class="nav-links">
+            <li><a href="/">Home</a></li>
+            <li><a href="/login">Login</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <h1>Your Shopping Cart</h1>
+        
+        {% if items %}
+        <div class="cart-wrapper">
+            <div class="cart-items">
+                <table class="cart-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Price</th>
+                            <th>Quantity</th>
+                            <th>Subtotal</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>
+                                <div class="product-info">
+                                    <strong>{{ item.product.name }}</strong>
+                                    <span>{{ item.product.category }}</span>
+                                </div>
+                            </td>
+                            <td>₹{{ "%.2f"|format(item.product.price) }}</td>
+                            <td>{{ item.quantity }}</td>
+                            <td>₹{{ "%.2f"|format(item.subtotal) }}</td>
+                            <td><a href="/remove_from_cart/{{ item.product.id }}" class="remove-btn">Remove</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="summary-card">
+                <h3>Order Summary</h3>
+                <div class="summary-row">
+                    <span>Subtotal</span>
+                    <span>₹{{ "%.2f"|format(total) }}</span>
+                </div>
+                <div class="summary-row">
+                    <span>Shipping</span>
+                    <span>Free</span>
+                </div>
+                <div class="summary-total">
+                    <span>Total</span>
+                    <span>₹{{ "%.2f"|format(total) }}</span>
+                </div>
+                <button class="btn-checkout">Proceed to Checkout</button>
+                <a href="/clear_cart" class="btn-clear">Clear Cart</a>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-cart">
+            <p>Your cart is currently empty.</p>
+            <a href="/" class="btn-back">Continue Shopping</a>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
