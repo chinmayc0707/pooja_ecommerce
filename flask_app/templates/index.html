@@ -107,7 +107,193 @@
         .footer-links a { color: var(--colors-primary); text-decoration: none; font-size: 14px; font-weight: 500; }
         @media (max-width: 1024px) { .hero { grid-template-columns: 1fr; text-align: center; padding-top: 64px; } .hero-content h1 { font-size: 64px; } .hero-content p { margin: 0 auto 32px; } .hero-image { height: 400px; } }
         @media (max-width: 480px) { .hero-content h1 { font-size: 40px; } .nav-links { display: none; } }
+
+        /* ── Chat Widget ──────────────────────────────────────────────── */
+        #chat-launcher {
+            position: fixed; bottom: 28px; right: 28px; z-index: 9999;
+            width: 60px; height: 60px; border-radius: 50%;
+            background: linear-gradient(135deg, #FF5C00, #FF8C00);
+            border: none; cursor: pointer; box-shadow: 0 4px 20px rgba(255,92,0,0.45);
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #chat-launcher:hover { transform: scale(1.08); box-shadow: 0 8px 28px rgba(255,92,0,0.55); }
+        #chat-launcher svg { width: 26px; height: 26px; color: white; }
+        #chat-launcher .chat-launcher-close { display: none; }
+        #chat-launcher.open .chat-launcher-icon { display: none; }
+        #chat-launcher.open .chat-launcher-close { display: block; }
+
+        #chat-panel {
+            position: fixed; bottom: 104px; right: 28px; z-index: 9998;
+            width: 380px; max-height: 560px;
+            background: #ffffff;
+            border: 1px solid #EEEEEE;
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.14);
+            display: flex; flex-direction: column;
+            transform: scale(0.92) translateY(12px);
+            opacity: 0; pointer-events: none;
+            transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), opacity 0.2s ease;
+            transform-origin: bottom right;
+        }
+        #chat-panel.open { transform: scale(1) translateY(0); opacity: 1; pointer-events: all; }
+
+        .chat-header {
+            padding: 18px 20px 14px;
+            border-bottom: 1px solid #EEEEEE;
+            display: flex; align-items: center; gap: 12px;
+            background: linear-gradient(135deg, #FF5C00 0%, #FF8C00 100%);
+            border-radius: 20px 20px 0 0;
+        }
+        .chat-avatar {
+            width: 38px; height: 38px; border-radius: 50%;
+            background: rgba(255,255,255,0.25);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; flex-shrink: 0;
+        }
+        .chat-header-info h4 { color: white; font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+        .chat-header-info span { color: rgba(255,255,255,0.8); font-size: 12px; }
+        .chat-online-dot { width: 8px; height: 8px; background: #4ade80; border-radius: 50%; border: 1.5px solid white; margin-left: auto; }
+
+        .chat-messages {
+            flex: 1; overflow-y: auto; padding: 16px;
+            display: flex; flex-direction: column; gap: 12px;
+            scroll-behavior: smooth;
+        }
+        .chat-messages::-webkit-scrollbar { width: 4px; }
+        .chat-messages::-webkit-scrollbar-track { background: transparent; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #DDD; border-radius: 4px; }
+
+        .msg-bubble {
+            max-width: 86%; padding: 10px 14px;
+            border-radius: 16px; font-size: 14px; line-height: 1.5;
+            animation: bubbleIn 0.2s ease;
+        }
+        @keyframes bubbleIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .msg-bubble.user { background: #FF5C00; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .msg-bubble.bot { background: #FFF9E5; color: #1A1A1A; align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid #EEE; }
+
+        .msg-sources { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-self: flex-start; max-width: 100%; }
+        .source-card {
+            display: flex; align-items: center; gap: 8px;
+            background: white; border: 1px solid #FFD9C0;
+            border-radius: 10px; padding: 8px 12px;
+            text-decoration: none; color: #1A1A1A;
+            font-size: 12px; transition: all 0.18s;
+            box-shadow: 0 1px 4px rgba(255,92,0,0.08);
+            max-width: 100%;
+        }
+        .source-card:hover { border-color: #FF5C00; background: #FFF9E5; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(255,92,0,0.15); }
+        .source-card-icon { font-size: 16px; flex-shrink: 0; }
+        .source-card-body .source-name { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+        .source-card-body .source-price { color: #FF5C00; font-weight: 700; font-size: 11px; }
+        .source-card-arrow { margin-left: 4px; color: #FF5C00; font-size: 14px; flex-shrink: 0; }
+
+        .typing-indicator { display: flex; gap: 5px; align-items: center; padding: 12px 14px; align-self: flex-start; }
+        .typing-dot { width: 7px; height: 7px; border-radius: 50%; background: #CCC; animation: typingBounce 1.2s ease infinite; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); background: #CCC; } 30% { transform: translateY(-6px); background: #FF5C00; } }
+
+        .chat-input-row {
+            padding: 12px 16px;
+            border-top: 1px solid #EEE;
+            display: flex; gap: 10px; align-items: flex-end;
+        }
+        #chat-input {
+            flex: 1; border: 1.5px solid #EEE; border-radius: 12px;
+            padding: 10px 14px; font-family: 'Inter', sans-serif; font-size: 14px;
+            resize: none; outline: none; max-height: 90px; line-height: 1.4;
+            transition: border-color 0.2s;
+        }
+        #chat-input:focus { border-color: #FF5C00; }
+        #chat-send {
+            width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+            background: #FF5C00; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s, transform 0.15s;
+        }
+        #chat-send:hover { background: #CC4A00; transform: scale(1.05); }
+        #chat-send svg { width: 18px; height: 18px; color: white; }
+        #chat-send:disabled { background: #DDD; cursor: not-allowed; transform: none; }
+        .chat-footer-note { text-align: center; font-size: 11px; color: #AAA; padding: 0 16px 10px; }
+
+        /* ── Markdown rendering inside bot bubbles ────────────────────── */
+        .msg-bubble.bot p { margin: 0 0 7px; }
+        .msg-bubble.bot p:last-child { margin-bottom: 0; }
+        .msg-bubble.bot ul, .msg-bubble.bot ol { padding-left: 18px; margin: 5px 0; }
+        .msg-bubble.bot li { margin: 3px 0; line-height: 1.5; }
+        .msg-bubble.bot strong { font-weight: 700; color: #1A1A1A; }
+        .msg-bubble.bot em { font-style: italic; }
+        .msg-bubble.bot a { color: #FF5C00; text-decoration: underline; }
+        .msg-bubble.bot blockquote {
+            border-left: 3px solid #FF8C00; margin: 8px 0;
+            padding: 4px 10px; color: #555; font-style: italic;
+        }
+        /* Inline code */
+        .msg-bubble.bot code {
+            background: rgba(255,92,0,0.1); color: #CC4A00;
+            padding: 2px 6px; border-radius: 4px;
+            font-family: 'Fira Code', 'Courier New', monospace; font-size: 12px;
+        }
+        /* Fenced code blocks */
+        .msg-bubble.bot pre {
+            background: #1a1a2e; border-radius: 10px;
+            padding: 14px 16px; margin: 10px 0;
+            overflow-x: auto; position: relative;
+            border: 1px solid #2d2d4a;
+        }
+        .msg-bubble.bot pre code {
+            background: none; color: #e0e0e0; padding: 0;
+            font-size: 12.5px; line-height: 1.6; white-space: pre;
+        }
+        .msg-bubble.bot pre .code-lang {
+            position: absolute; top: 6px; right: 10px;
+            font-size: 10px; color: #666; font-family: sans-serif;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .msg-bubble.bot h1, .msg-bubble.bot h2, .msg-bubble.bot h3 {
+            font-size: 15px; font-weight: 700; margin: 10px 0 4px;
+            color: #1A1A1A; font-family: 'Inter', sans-serif;
+        }
+        .msg-bubble.bot hr {
+            border: none; border-top: 1px solid #EEE; margin: 8px 0;
+        }
+        /* JSON / error highlight */
+        .msg-bubble.bot .json-note {
+            font-size: 11px; color: #999; margin-top: 6px; font-style: italic;
+        }
+    
     </style>
+    <!-- Markdown renderer + sanitizer -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script>
+        // Configure marked.js
+        const renderer = new marked.Renderer();
+
+        // Custom code block: add dark theme + language badge
+        renderer.code = function({ text, lang }) {
+            const langLabel = lang
+                ? `<span class="code-lang">${DOMPurify.sanitize(lang)}</span>`
+                : '';
+            const escaped = text
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `<pre>${langLabel}<code>${escaped}</code></pre>`;
+        };
+
+        // Open links in new tab safely
+        renderer.link = function({ href, title, text }) {
+            const titleAttr = title ? ` title="${DOMPurify.sanitize(title)}"` : '';
+            return `<a href="${DOMPurify.sanitize(href)}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
+        };
+
+        marked.use({
+            renderer,
+            gfm: true,       // GitHub Flavored Markdown (tables, strikethrough)
+            breaks: true,    // Single newline → <br> (chat-friendly)
+        });
+    </script>
 </head>
 <body>
     <nav>
@@ -210,6 +396,205 @@
             } catch (error) {
                 console.error('Error:', error);
                 alert('An error occurred. Please try again.');
+            }
+        }
+    </script>
+
+    <!-- ── Chat Widget ────────────────────────────────────────────────── -->
+    <button id="chat-launcher" aria-label="Open AI assistant" onclick="toggleChat()">
+        <svg class="chat-launcher-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+        <svg class="chat-launcher-close" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+    </button>
+
+    <div id="chat-panel" role="dialog" aria-label="AI Shopping Assistant">
+        <div class="chat-header">
+            <div class="chat-avatar">🕯️</div>
+            <div class="chat-header-info">
+                <h4>Pooja Assistant</h4>
+                <span>Powered by AI • Answers from our catalog</span>
+            </div>
+            <div class="chat-online-dot" title="Online"></div>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="msg-bubble bot">
+                Namaste! 🙏 I'm your Pooja Store assistant. Ask me about any of our products — brass items, incense, fragrances, and more. I'll only recommend what we actually carry!
+            </div>
+        </div>
+
+        <div class="chat-input-row">
+            <textarea id="chat-input" rows="1" placeholder="Ask about our products..." onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
+            <button id="chat-send" onclick="sendMessage()" aria-label="Send">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+            </button>
+        </div>
+        <p class="chat-footer-note">🔒 Only recommends products from our store</p>
+    </div>
+
+    <script>
+        // ── Chat State ────────────────────────────────────────────────────────
+        let chatHistory = [];
+        let isSending = false;
+
+        function toggleChat() {
+            const panel = document.getElementById('chat-panel');
+            const launcher = document.getElementById('chat-launcher');
+            panel.classList.toggle('open');
+            launcher.classList.toggle('open');
+            if (panel.classList.contains('open')) {
+                setTimeout(() => document.getElementById('chat-input').focus(), 250);
+            }
+        }
+
+        function handleChatKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function autoResize(el) {
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 90) + 'px';
+        }
+
+        function scrollToBottom() {
+            const msgs = document.getElementById('chat-messages');
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function appendMessage(role, text) {
+            const msgs = document.getElementById('chat-messages');
+            const bubble = document.createElement('div');
+            bubble.className = `msg-bubble ${role}`;
+
+            if (role === 'bot') {
+                // Safety: extract answer if LLM accidentally returned raw JSON
+                text = extractAnswerFromJson(text);
+                // Render as markdown and sanitize
+                const rawHtml = marked.parse(text);
+                bubble.innerHTML = DOMPurify.sanitize(rawHtml, {
+                    ADD_ATTR: ['target'],
+                    FORBID_TAGS: ['script', 'style'],
+                });
+            } else {
+                bubble.textContent = text;
+            }
+
+            msgs.appendChild(bubble);
+            scrollToBottom();
+            return bubble;
+        }
+
+        /**
+         * If the LLM fallback leaked raw JSON (e.g. {"answer":"...","cited_product_ids":[]}),
+         * extract just the answer string so the user never sees raw JSON.
+         */
+        function extractAnswerFromJson(text) {
+            const trimmed = text.trim();
+            // Handle ```json ... ``` fenced blocks
+            const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]+?)\s*```$/);
+            const jsonStr = fenced ? fenced[1] : trimmed;
+
+            if (jsonStr.startsWith('{')) {
+                try {
+                    const data = JSON.parse(jsonStr);
+                    if (data && typeof data.answer === 'string') {
+                        return data.answer;
+                    }
+                } catch (e) { /* not JSON, leave as-is */ }
+            }
+            return text;
+        }
+
+        function appendSources(sources) {
+            if (!sources || sources.length === 0) return;
+            const msgs = document.getElementById('chat-messages');
+            const container = document.createElement('div');
+            container.className = 'msg-sources';
+            sources.forEach(src => {
+                const card = document.createElement('a');
+                card.href = src.url;
+                card.className = 'source-card';
+                card.title = `View ${src.name}`;
+                card.innerHTML = `
+                    <span class="source-card-icon">🛕</span>
+                    <div class="source-card-body">
+                        <div class="source-name">${escHtml(src.name)}</div>
+                        <div class="source-price">₹${Number(src.price).toFixed(2)}</div>
+                    </div>
+                    <span class="source-card-arrow">→</span>`;
+                container.appendChild(card);
+            });
+            msgs.appendChild(container);
+            scrollToBottom();
+        }
+
+        function showTyping() {
+            const msgs = document.getElementById('chat-messages');
+            const el = document.createElement('div');
+            el.id = 'typing-indicator';
+            el.className = 'typing-indicator msg-bubble bot';
+            el.style.padding = '10px 14px';
+            el.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+            msgs.appendChild(el);
+            scrollToBottom();
+        }
+
+        function removeTyping() {
+            const el = document.getElementById('typing-indicator');
+            if (el) el.remove();
+        }
+
+        function escHtml(str) {
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        async function sendMessage() {
+            if (isSending) return;
+            const input = document.getElementById('chat-input');
+            const sendBtn = document.getElementById('chat-send');
+            const question = input.value.trim();
+            if (!question) return;
+
+            isSending = true;
+            sendBtn.disabled = true;
+            input.value = '';
+            input.style.height = 'auto';
+
+            appendMessage('user', question);
+            chatHistory.push({ role: 'user', content: question });
+            showTyping();
+
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question, history: chatHistory.slice(-10) })
+                });
+                const data = await res.json();
+                removeTyping();
+
+                if (data.error) {
+                    appendMessage('bot', '⚠️ ' + data.error);
+                } else {
+                    appendMessage('bot', data.answer);
+                    chatHistory.push({ role: 'assistant', content: data.answer });
+                    appendSources(data.sources);
+                }
+            } catch (e) {
+                removeTyping();
+                appendMessage('bot', '⚠️ Network error. Please try again.');
+            } finally {
+                isSending = false;
+                sendBtn.disabled = false;
+                input.focus();
             }
         }
     </script>

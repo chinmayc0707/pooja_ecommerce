@@ -67,6 +67,15 @@
         .toggle-option { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: var(--colors-slate); }
         .toggle-option input { cursor: pointer; }
 
+        .btn-ai-sync { display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #FF5C00, #FF8C00); color: white; padding: 12px 24px; border-radius: var(--rounded-md); border: none; cursor: pointer; font-weight: 600; font-size: 14px; font-family: 'Inter', sans-serif; transition: all 0.2s; box-shadow: 0 2px 8px rgba(255,92,0,0.3); }
+        .btn-ai-sync:hover { box-shadow: 0 4px 16px rgba(255,92,0,0.4); transform: translateY(-1px); }
+        .btn-ai-sync:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .sync-status { margin-top: 12px; font-size: 13px; display: none; }
+        .sync-status.success { color: #16a34a; }
+        .sync-status.error { color: #dc2626; }
+        .ai-section { background: linear-gradient(135deg, #fff9e5, #fff3d4); border: 1px solid var(--colors-beige-deep); padding: 28px 32px; border-radius: var(--rounded-lg); margin-bottom: 48px; max-width: 600px; }
+        .ai-section h3 { font-family: 'Playfair Display', serif; font-size: 24px; margin-bottom: 8px; }
+        .ai-section p { color: var(--colors-slate); font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
         .sunset-stripe-bottom { height: 10px; width: 100%; background: linear-gradient(to right, var(--colors-primary), #FF8C00, #FFA500, #FFD700, var(--colors-cream)); position: fixed; bottom: 0; left: 0; }
     </style>
 </head>
@@ -104,6 +113,16 @@
                 </div>
                 <button type="submit" class="btn-save">Update Credentials</button>
             </form>
+        </div>
+
+        <div class="ai-section">
+            <h3>🤖 AI Product Sync</h3>
+            <p>Re-index all products into the Pinecone vector database so the AI chat assistant reflects your latest catalog. This runs automatically on add/edit/delete, but you can trigger it manually here.</p>
+            <button id="reindexBtn" class="btn-ai-sync" onclick="triggerReindex()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Sync All Products to AI
+            </button>
+            <div id="syncStatus" class="sync-status"></div>
         </div>
 
         <div class="table-container">
@@ -249,6 +268,34 @@
             const modal = document.getElementById('productModal');
             if (event.target == modal) closeModal();
         }
+
+        async function triggerReindex() {
+            const btn = document.getElementById('reindexBtn');
+            const status = document.getElementById('syncStatus');
+            btn.disabled = true;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Syncing...`;
+            status.style.display = 'none';
+            try {
+                const res = await fetch('/admin/reindex', { method: 'POST' });
+                const data = await res.json();
+                status.style.display = 'block';
+                if (data.success) {
+                    status.className = 'sync-status success';
+                    status.innerHTML = `✓ Successfully indexed ${data.indexed} products into Pinecone.`;
+                } else {
+                    status.className = 'sync-status error';
+                    status.innerHTML = `✗ Error: ${data.error}`;
+                }
+            } catch (e) {
+                status.style.display = 'block';
+                status.className = 'sync-status error';
+                status.innerHTML = '✗ Network error. Please try again.';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Sync All Products to AI`;
+            }
+        }
     </script>
+    <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
 </body>
 </html>

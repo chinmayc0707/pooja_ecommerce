@@ -5,6 +5,9 @@ from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, make_response, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Define absolute paths
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -184,6 +187,8 @@ def add_product():
     new_product = Product(name=name, category=category, price=price, stock=stock, description=description, image_url=image_path)
     db.session.add(new_product)
     db.session.commit()
+    # Sync new product to Pinecone
+    _sync_product_to_pinecone(new_product)
     return redirect(url_for('admin'))
 
 @app.route('/edit-product/<int:id>', methods=['POST'])
@@ -208,14 +213,19 @@ def edit_product(id):
         product.image_url = image_url
         
     db.session.commit()
+    # Sync updated product to Pinecone
+    _sync_product_to_pinecone(product)
     return redirect(url_for('admin'))
 
 @app.route('/delete-product/<int:id>')
 @token_required
 def delete_product(id):
     product = Product.query.get_or_404(id)
+    product_id = product.id
     db.session.delete(product)
     db.session.commit()
+    # Remove deleted product from Pinecone
+    _delete_product_from_pinecone(product_id)
     return redirect(url_for('admin'))
 
 @app.route('/change-password', methods=['POST'])
@@ -244,6 +254,72 @@ def logout():
     response = make_response(redirect(url_for('index')))
     response.set_cookie('auth_token', '', expires=0)
     return response
+
+# ─── RAG helper functions ─────────────────────────────────────────────────────
+def _sync_product_to_pinecone(product):
+    """Upsert a single product vector. Silently skips if Pinecone not configured."""
+    if not os.environ.get('PINECONE_API_KEY'):
+        return
+    try:
+        from rag.indexer import index_single_product
+        index_single_product(product)
+    except Exception as e:
+        app.logger.warning(f'Pinecone sync failed for product {product.id}: {e}')
+
+
+def _delete_product_from_pinecone(product_id: int):
+    """Delete a product vector. Silently skips if Pinecone not configured."""
+    if not os.environ.get('PINECONE_API_KEY'):
+        return
+    try:
+        from rag.indexer import delete_product_vector
+        delete_product_vector(product_id)
+    except Exception as e:
+        app.logger.warning(f'Pinecone delete failed for product {product_id}: {e}')
+
+
+# ─── Chat (RAG) endpoint ───────────────────────────────────────────────────────
+@app.route('/chat', methods=['POST'])
+def chat():
+    """
+    POST /chat
+    Body: { "question": str, "history": [{"role": "user"|"assistant", "content": str}] }
+    Returns: { "answer": str, "sources": [{"product_id", "name", "price", "category", "url"}] }
+    """
+    if not os.environ.get('PINECONE_API_KEY'):
+        return jsonify({'error': 'RAG not configured. Please set up your .env file.'}), 503
+
+    data = request.get_json(force=True)
+    question = (data.get('question') or '').strip()
+    history = data.get('history', [])
+
+    if not question:
+        return jsonify({'error': 'No question provided.'}), 400
+
+    try:
+        from rag.rag_engine import ask
+        result = ask(question, history)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f'RAG chat error: {e}')
+        return jsonify({'error': 'Something went wrong with the AI assistant. Please try again.'}), 500
+
+
+# ─── Admin: manual reindex ─────────────────────────────────────────────────────
+@app.route('/admin/reindex', methods=['POST'])
+@token_required
+def admin_reindex():
+    """Reindex all products into Pinecone. Triggered by admin panel button."""
+    if not os.environ.get('PINECONE_API_KEY'):
+        return jsonify({'error': 'PINECONE_API_KEY not configured.'}), 503
+    try:
+        from rag.indexer import index_all_products
+        count = index_all_products(app)
+        return jsonify({'success': True, 'indexed': count})
+    except Exception as e:
+        app.logger.error(f'Reindex error: {e}')
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     init_db()
