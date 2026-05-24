@@ -63,6 +63,10 @@
         .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
         .btn-close { background: var(--colors-slate); color: white; padding: 10px 20px; border-radius: var(--rounded-md); border: none; cursor: pointer; }
 
+        .image-toggle { display: flex; gap: 12px; margin-bottom: 8px; }
+        .toggle-option { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: var(--colors-slate); }
+        .toggle-option input { cursor: pointer; }
+
         .sunset-stripe-bottom { height: 10px; width: 100%; background: linear-gradient(to right, var(--colors-primary), #FF8C00, #FFA500, #FFD700, var(--colors-cream)); position: fixed; bottom: 0; left: 0; }
     </style>
 </head>
@@ -131,18 +135,16 @@
         </div>
     </div>
 
-    <!-- Category Datalist -->
     <datalist id="category-list">
         {% for category in categories %}
         <option value="{{ category }}">
         {% endfor %}
     </datalist>
 
-    <!-- Product Modal -->
     <div id="productModal" class="modal">
         <div class="modal-content">
             <h2 id="modalTitle">Add Product</h2>
-            <form id="productForm" method="POST">
+            <form id="productForm" method="POST" enctype="multipart/form-data">
                 <div class="modal-form">
                     <div class="form-group">
                         <label>Product Name</label>
@@ -161,8 +163,17 @@
                         <input type="number" name="stock" id="prodStock" required>
                     </div>
                     <div class="form-group">
-                        <label>Image URL</label>
-                        <input type="url" name="image_url" id="prodImage" placeholder="https://example.com/image.jpg">
+                        <label>Product Image</label>
+                        <div class="image-toggle">
+                            <label class="toggle-option">
+                                <input type="radio" name="image_type" value="url" checked onclick="toggleImageInput('url')"> Image Link
+                            </label>
+                            <label class="toggle-option">
+                                <input type="radio" name="image_type" value="file" onclick="toggleImageInput('file')"> Upload File
+                            </label>
+                        </div>
+                        <input type="url" name="image_url" id="prodImageUrl" placeholder="https://example.com/image.jpg">
+                        <input type="file" name="image_file" id="prodImageFile" style="display: none;" accept="image/*">
                     </div>
                     <div class="form-group">
                         <label>Description</label>
@@ -180,38 +191,54 @@
     <div class="sunset-stripe-bottom"></div>
 
     <script>
+        function toggleImageInput(type) {
+            const urlInput = document.getElementById('prodImageUrl');
+            const fileInput = document.getElementById('prodImageFile');
+            if (type === 'url') {
+                urlInput.style.display = 'block';
+                fileInput.style.display = 'none';
+            } else {
+                urlInput.style.display = 'none';
+                fileInput.style.display = 'block';
+            }
+        }
+
         function openModal(mode) {
             const modal = document.getElementById('productModal');
             const form = document.getElementById('productForm');
             const title = document.getElementById('modalTitle');
-            
             modal.style.display = 'flex';
             form.action = '/add-product';
             title.innerText = 'Add New Product';
-            
             document.getElementById('prodName').value = '';
             document.getElementById('prodCat').value = '';
             document.getElementById('prodPrice').value = '';
             document.getElementById('prodStock').value = '';
-            document.getElementById('prodImage').value = '';
+            document.getElementById('prodImageUrl').value = '';
             document.getElementById('prodDesc').value = '';
+            toggleImageInput('url');
         }
 
         function openEditModal(id, name, cat, price, stock, desc, img) {
             const modal = document.getElementById('productModal');
             const form = document.getElementById('productForm');
             const title = document.getElementById('modalTitle');
-            
             modal.style.display = 'flex';
             form.action = '/edit-product/' + id;
             title.innerText = 'Edit Product';
-            
             document.getElementById('prodName').value = name;
             document.getElementById('prodCat').value = cat;
             document.getElementById('prodPrice').value = price;
             document.getElementById('prodStock').value = stock;
-            document.getElementById('prodImage').value = img || '';
             document.getElementById('prodDesc').value = desc;
+            
+            if (img) {
+                document.getElementById('prodImageUrl').value = img;
+                // If it's a local path, we still show the URL field but could mark it as uploaded
+                toggleImageInput('url'); 
+            } else {
+                toggleImageInput('url');
+            }
         }
 
         function closeModal() {

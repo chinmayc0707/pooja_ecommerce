@@ -4,15 +4,18 @@ import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, make_response, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.utils import secure_filename
 
 # Define absolute paths
 base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, 'templates')
 db_path = os.path.join(base_dir, 'pooja_store.db')
+UPLOAD_FOLDER = os.path.join(base_dir, 'static', 'uploads')
 
 app = Flask(__name__, template_folder=template_dir)
 app.secret_key = 'pooja_divine_secret_key'
 JWT_SECRET = 'super_secret_jwt_key'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
@@ -32,7 +35,7 @@ class Product(db.Model):
     price = db.Column(db.Float, nullable=False)
     stock = db.Column(db.Integer, nullable=False)
     description = db.Column(db.Text, nullable=True)
-    image_url = db.Column(db.String(500), nullable=True)
+    image_url = db.Column(db.String(500), nullable=True) # Stores either URL or local path
 
 # Database Initialization
 def init_db():
@@ -155,8 +158,7 @@ def admin():
     category_list = [c[0] for c in categories]
     token = request.cookies.get('auth_token')
     data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    cart_count = len(session.get('cart', []))
-    return render_template('admin.html', products=products, admin_user=data['user'], categories=category_list, cart_count=cart_count)
+    return render_template('admin.html', products=products, admin_user=data['user'], categories=category_list)
 
 @app.route('/add-product', methods=['POST'])
 @token_required
@@ -166,8 +168,20 @@ def add_product():
     price = float(request.form.get('price'))
     stock = int(request.form.get('stock'))
     description = request.form.get('description')
+    
+    image_path = None
     image_url = request.form.get('image_url')
-    new_product = Product(name=name, category=category, price=price, stock=stock, description=description, image_url=image_url)
+    image_file = request.files.get('image_file')
+    
+    if image_file and image_file.filename != '':
+        filename = secure_filename(image_file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        image_file.save(file_path)
+        image_path = f"static/uploads/{filename}"
+    elif image_url:
+        image_path = image_url
+        
+    new_product = Product(name=name, category=category, price=price, stock=stock, description=description, image_url=image_path)
     db.session.add(new_product)
     db.session.commit()
     return redirect(url_for('admin'))
@@ -181,7 +195,18 @@ def edit_product(id):
     product.price = float(request.form.get('price'))
     product.stock = int(request.form.get('stock'))
     product.description = request.form.get('description')
-    product.image_url = request.form.get('image_url')
+    
+    image_url = request.form.get('image_url')
+    image_file = request.files.get('image_file')
+    
+    if image_file and image_file.filename != '':
+        filename = secure_filename(image_file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        image_file.save(file_path)
+        product.image_url = f"static/uploads/{filename}"
+    elif image_url:
+        product.image_url = image_url
+        
     db.session.commit()
     return redirect(url_for('admin'))
 
