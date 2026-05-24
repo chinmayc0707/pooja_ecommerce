@@ -21,8 +21,8 @@ This application features a full shopping experience, including product catalogi
 
 1. **Clone the repository:**
    ```bash
-   git clone <repository_url>
-   cd <project_directory>
+   git clone https://github.com/chinmayc0707/pooja_ecommerce.git
+   cd pooja_ecommerce
    ```
 
 2. **Create a virtual environment (recommended):**
