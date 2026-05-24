@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ product.name }} | Pooja Ecommerce</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --colors-primary: #FF5C00;
+            --colors-primary-deep: #CC4A00;
+            --colors-cream: #FFF9E5;
+            --colors-beige-deep: #E5DCC3;
+            --colors-canvas: #FFFFFF;
+            --colors-hairline-soft: #EEEEEE;
+            --colors-ink: #1A1A1A;
+            --colors-slate: #666666;
+            --colors-on-dark: #FFFFFF;
+            --rounded-md: 8px;
+            --rounded-lg: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--colors-canvas); color: var(--colors-ink); line-height: 1.6; }
+        
+        nav { position: sticky; top: 0; height: 64px; background: var(--colors-canvas); border-bottom: 1px solid var(--colors-hairline-soft); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 100; }
+        .logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; text-decoration: none; color: var(--colors-ink); }
+        .nav-links { display: flex; gap: 24px; align-items: center; list-style: none; }
+        .nav-links a { text-decoration: none; color: var(--colors-slate); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--colors-primary); }
+
+        .container { max-width: 1100px; margin: 64px auto; padding: 0 32px; }
+        .product-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+        
+        .product-image { width: 100%; height: 600px; border-radius: var(--rounded-lg); background: linear-gradient(135deg, #FF8C00 0%, #FF5C00 100%); background-image: url('https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000'); background-size: cover; background-position: center; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        
+        .product-info h1 { font-family: 'Playfair Display', serif; font-size: 48px; margin-bottom: 16px; color: var(--colors-ink); }
+        .category-tag { display: inline-block; background: var(--colors-cream); color: var(--colors-primary); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 24px; border: 1px solid var(--colors-beige-deep); }
+        .price-tag { font-size: 32px; font-weight: 600; color: var(--colors-ink); margin-bottom: 32px; font-family: 'Inter', sans-serif; }
+        .description { font-size: 18px; color: var(--colors-slate); margin-bottom: 40px; line-height: 1.8; }
+        
+        .actions { display: flex; gap: 16px; align-items: center; }
+        .btn-primary { background: var(--colors-primary); color: var(--colors-on-dark); padding: 16px 32px; border-radius: var(--rounded-md); text-decoration: none; font-size: 16px; font-weight: 600; transition: all 0.2s; border: none; cursor: pointer; }
+        .btn-primary:hover { background: var(--colors-primary-deep); }
+        .btn-secondary { background: transparent; color: var(--colors-ink); border: 1px solid var(--colors-hairline-strong); padding: 16px 32px; border-radius: var(--rounded-md); text-decoration: none; font-size: 16px; font-weight: 600; transition: all 0.2s; }
+        .btn-secondary:hover { background: var(--colors-cream); }
+
+        @media (max-width: 850px) {
+            .product-grid { grid-template-columns: 1fr; gap: 40px; }
+            .product-image { height: 400px; }
+            .product-info h1 { font-size: 36px; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/" class="logo">POOJA ECOMMERCE_</a>
+        <ul class="nav-links">
+            <li><a href="/">Home</a></li>
+            <li><a href="/login">Login</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div class="product-grid">
+            <div class="product-image"></div>
+            <div class="product-info">
+                <span class="category-tag">{{ product.category }}</span>
+                <h1>{{ product.name }}</h1>
+                <div class="price-tag">₹{{ "%.2f"|format(product.price) }}</div>
+                <p class="description">{{ product.description }}</p>
+                <div class="actions">
+                    <button onclick="addToCart({{ product.id }}, this)" class="btn-primary">Add to Cart</button>
+                    <a href="/" class="btn-secondary">Back to Store</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function addToCart(productId, button) {
+            const originalText = button.innerText;
+            try {
+                const response = await fetch(`/add_to_cart/${productId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (response.ok) {
+                    button.innerText = 'Added!';
+                    button.style.background = '#CC4A00';
+                    setTimeout(() => {
+                        button.innerText = originalText;
+                        button.style.background = '#FF5C00';
+                    }, 1500);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

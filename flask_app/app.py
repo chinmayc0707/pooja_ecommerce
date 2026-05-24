@@ -32,6 +32,7 @@ class Product(db.Model):
     price = db.Column(db.Float, nullable=False)
     stock = db.Column(db.Integer, nullable=False)
     description = db.Column(db.Text, nullable=True)
+    image_url = db.Column(db.String(500), nullable=True)
 
 # Database Initialization
 def init_db():
@@ -43,12 +44,12 @@ def init_db():
         
         if not Product.query.first():
             starter_products = [
-                Product(name="Pure Brass Diya", category="Brass Items", price=499.0, stock=45, description="Hand-polished traditional brass lamps."),
-                Product(name="Organic Agarbatti", category="Incense", price=199.0, stock=120, description="Naturally scented incense sticks."),
-                Product(name="Puja Thali Set", category="Brass Items", price=1299.0, stock=12, description="All-in-one elegant brass thali set."),
-                Product(name="Sandalwood Powder", category="Fragrance", price=250.0, stock=60, description="Premium grade naturally sourced sandalwood."),
-                Product(name="Copper Kalash", category="Brass Items", price=750.0, stock=20, description="Pure copper vessel for ritual offerings."),
-                Product(name="Premium Camphor", category="Fragrance", price=150.0, stock=100, description="Pure smokeless camphor crystals."),
+                Product(name="Pure Brass Diya", category="Brass Items", price=499.0, stock=45, description="Hand-polished traditional brass lamps.", image_url="https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000"),
+                Product(name="Organic Agarbatti", category="Incense", price=199.0, stock=120, description="Naturally scented incense sticks.", image_url="https://images.unsplash.com/photo-1602928321679-56077325677c?auto=format&fit=crop&q=80&w=1000"),
+                Product(name="Puja Thali Set", category="Brass Items", price=1299.0, stock=12, description="All-in-one elegant brass thali set.", image_url="https://images.unsplash.com/photo-1561489573-316527703983?auto=format&fit=crop&q=80&w=1000"),
+                Product(name="Sandalwood Powder", category="Fragrance", price=250.0, stock=60, description="Premium grade naturally sourced sandalwood.", image_url="https://images.unsplash.com/photo-159543B95956D-C9D7A6E1A"),
+                Product(name="Copper Kalash", category="Brass Items", price=750.0, stock=20, description="Pure copper vessel for ritual offerings.", image_url="https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000"),
+                Product(name="Premium Camphor", category="Fragrance", price=150.0, stock=100, description="Pure smokeless camphor crystals.", image_url="https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000"),
             ]
             db.session.add_all(starter_products)
             db.session.commit()
@@ -77,17 +78,24 @@ def index():
         if product.category not in categorized_products:
             categorized_products[product.category] = []
         categorized_products[product.category].append(product)
-    return render_template('index.html', categorized_products=categorized_products)
+    
+    cart = session.get('cart', [])
+    cart_count = len(cart)
+    
+    return render_template('index.html', categorized_products=categorized_products, cart_count=cart_count)
+
+@app.route('/product/<int:product_id>')
+def product_detail(product_id):
+    product = Product.query.get_or_404(product_id)
+    return render_template('product_detail.html', product=product)
 
 @app.route('/add_to_cart/<int:product_id>', methods=['POST'])
 def add_to_cart(product_id):
-    if 'cart' not in session:
-        session['cart'] = []
-    
-    cart = session['cart']
+    cart = session.get('cart', [])
     cart.append(product_id)
     session['cart'] = cart
-    return jsonify({"success": True, "cart_count": len(session['cart'])})
+    session.modified = True
+    return jsonify({"success": True, "cart_count": len(cart)})
 
 @app.route('/cart')
 def view_cart():
@@ -113,6 +121,7 @@ def remove_from_cart(product_id):
         if product_id in cart:
             cart.remove(product_id)
             session['cart'] = cart
+            session.modified = True
     return redirect(url_for('view_cart'))
 
 @app.route('/clear_cart')
@@ -142,13 +151,12 @@ def login():
 @token_required
 def admin():
     products = Product.query.all()
-    # Get a unique list of categories for the dropdown
     categories = db.session.query(Product.category).distinct().all()
     category_list = [c[0] for c in categories]
-    
     token = request.cookies.get('auth_token')
     data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    return render_template('admin.html', products=products, admin_user=data['user'], categories=category_list)
+    cart_count = len(session.get('cart', []))
+    return render_template('admin.html', products=products, admin_user=data['user'], categories=category_list, cart_count=cart_count)
 
 @app.route('/add-product', methods=['POST'])
 @token_required
@@ -158,7 +166,8 @@ def add_product():
     price = float(request.form.get('price'))
     stock = int(request.form.get('stock'))
     description = request.form.get('description')
-    new_product = Product(name=name, category=category, price=price, stock=stock, description=description)
+    image_url = request.form.get('image_url')
+    new_product = Product(name=name, category=category, price=price, stock=stock, description=description, image_url=image_url)
     db.session.add(new_product)
     db.session.commit()
     return redirect(url_for('admin'))
@@ -172,6 +181,7 @@ def edit_product(id):
     product.price = float(request.form.get('price'))
     product.stock = int(request.form.get('stock'))
     product.description = request.form.get('description')
+    product.image_url = request.form.get('image_url')
     db.session.commit()
     return redirect(url_for('admin'))
 

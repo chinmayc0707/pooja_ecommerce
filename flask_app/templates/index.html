@@ -59,8 +59,8 @@
         .cart-icon { width: 18px; height: 18px; stroke: currentColor; }
         .cart-badge {
             position: absolute;
-            top: -8px;
-            right: -8px;
+            top: -5px;
+            right: -5px;
             background: #FF5C00;
             color: white;
             font-size: 10px;
@@ -71,12 +71,17 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 2px solid white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 2px solid #FFFFFF;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 10;
         }
 
         .btn-primary { background: var(--colors-primary); color: var(--colors-on-dark); padding: 10px 20px; border-radius: var(--rounded-md); text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.2s; border: none; cursor: pointer; }
         .btn-primary:hover { background: var(--colors-primary-deep); }
+        
+        .btn-secondary { background: transparent; color: var(--colors-ink); border: 1px solid var(--colors-hairline-strong); padding: 10px 20px; border-radius: var(--rounded-md); text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.2s; cursor: pointer; }
+        .btn-secondary:hover { background: var(--colors-cream); border-color: var(--colors-beige-deep); }
+
         .hero { display: grid; grid-template-columns: 1fr 1fr; min-height: 80vh; align-items: center; padding: 0 32px; gap: 64px; max-width: 1280px; margin: 0 auto; }
         .hero-content h1 { font-size: 84px; line-height: 1.05; margin-bottom: 24px; color: var(--colors-ink); }
         .hero-content p { font-size: 18px; color: var(--colors-ink-tint); margin-bottom: 32px; max-width: 500px; }
@@ -91,6 +96,7 @@
         .card h3 { font-size: 28px; margin-bottom: 12px; }
         .card p { color: var(--colors-slate); font-size: 16px; margin-bottom: 20px; }
         .card .price { font-family: 'Inter', sans-serif; font-weight: 600; color: var(--colors-ink); margin-bottom: 20px; font-size: 18px; }
+        .card-actions { display: flex; gap: 12px; margin-top: auto; }
         .sunset-stripe { height: 40px; width: 100%; background: linear-gradient(to right, var(--colors-primary), var(--colors-sunshine-700), var(--colors-sunshine-500), var(--colors-yellow-saturated), var(--colors-cream)); margin-top: 96px; }
         footer { background: var(--colors-cream); padding: 64px 32px; text-align: center; color: var(--colors-ink); }
         .footer-links { display: flex; justify-content: center; gap: 32px; margin-bottom: 32px; list-style: none; }
@@ -113,7 +119,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                     <span>Cart</span>
-                    <span class="cart-badge" id="cart-count">{{ cart_count }}</span>
+                    <span class="cart-badge" id="cart-count">{{ cart_count if cart_count else 0 }}</span>
                 </a>
             </li>
         </ul>
@@ -140,9 +146,12 @@
             {% for product in products %}
             <div class="card {{ 'card-cream' if loop.index % 2 == 0 }}">
                 <h3>{{ product.name }}</h3>
-                <p>{{ product.description }}</p>
+                <p>{{ product.description[:100] }}{% if product.description|length > 100 %}...{% endif %}</p>
                 <div class="price">₹{{ "%.2f"|format(product.price) }}</div>
-                <button data-product-id="{{ product.id }}" onclick="addToCart(this)" class="btn-primary" style="text-align: center;">Add to Cart</button>
+                <div class="card-actions">
+                    <button data-product-id="{{ product.id }}" onclick="addToCart(this)" class="btn-primary">Add to Cart</button>
+                    <a href="/product/{{ product.id }}" class="btn-secondary">View More</a>
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -176,11 +185,9 @@
                 if (response.ok) {
                     const data = await response.json();
                     
-                    // Update button text
                     button.innerText = 'Added!';
                     button.style.background = 'var(--colors-primary-deep)';
                     
-                    // Update cart badge count
                     const badge = document.getElementById('cart-count');
                     if (badge) {
                         badge.innerText = data.cart_count;
