@@ -1,0 +1,97 @@
+<style>
+#global-loader-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 4px;
+    background-color: var(--colors-primary, #FF5C00);
+    width: 0%;
+    z-index: 99999;
+    pointer-events: none;
+    opacity: 0;
+    transition: width 0.2s, opacity 0.4s;
+}
+body.loading-active #global-loader-bar {
+    opacity: 1;
+    width: 70%;
+    transition: width 10s cubic-bezier(0,0.5,0.5,1), opacity 0.2s;
+}
+body.loading-done #global-loader-bar {
+    opacity: 0;
+    width: 100%;
+    transition: width 0.2s, opacity 0.4s 0.2s;
+}
+</style>
+<div id="global-loader-bar"></div>
+<script>
+(function() {
+    let loaderTimer = null;
+    let activeTasks = 0;
+
+    function startTask() {
+        activeTasks++;
+        if (activeTasks === 1) {
+            loaderTimer = setTimeout(() => {
+                document.body.classList.add('loading-active');
+                document.body.classList.remove('loading-done');
+            }, 2000);
+        }
+    }
+
+    function endTask() {
+        activeTasks--;
+        if (activeTasks <= 0) {
+            activeTasks = 0;
+            clearTimeout(loaderTimer);
+            if (document.body.classList.contains('loading-active')) {
+                document.body.classList.remove('loading-active');
+                document.body.classList.add('loading-done');
+                setTimeout(() => {
+                    document.body.classList.remove('loading-done');
+                }, 600);
+            }
+        }
+    }
+
+    // Intercept fetch
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+        startTask();
+        try {
+            return await originalFetch.apply(this, args);
+        } finally {
+            endTask();
+        }
+    };
+
+    // Intercept XMLHttpRequest
+    const origOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function() {
+        startTask();
+        this.addEventListener('loadend', () => endTask());
+        origOpen.apply(this, arguments);
+    };
+
+    // Intercept link clicks and forms
+    window.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('click', (e) => {
+            const link = e.target.closest('a');
+            if (link && link.href && !link.getAttribute('href').startsWith('#') && !link.getAttribute('href').startsWith('javascript:') && link.target !== '_blank') {
+                startTask();
+            }
+        });
+
+        document.addEventListener('submit', (e) => {
+            startTask();
+        });
+    });
+
+    // Clear task if page ends up showing from bfcache
+    window.addEventListener('pageshow', (e) => {
+        if (e.persisted) {
+            activeTasks = 0;
+            endTask();
+        }
+    });
+})();
+</script>
