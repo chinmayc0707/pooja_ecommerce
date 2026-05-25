@@ -66,55 +66,56 @@ def _get_vectorstore():
 
 # ─── Pluggable LLM factory ────────────────────────────────────────────────────
 def _get_llm():
-    provider = os.getenv("LLM_PROVIDER", "openai").lower()
-    model_name = os.getenv("LLM_MODEL_NAME", "")
+    # provider = os.getenv("LLM_PROVIDER", "openai").lower()
+    # model_name = os.getenv("LLM_MODEL_NAME", "")
 
-    if provider == "openai":
-        from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
-            model=model_name or "gpt-4o-mini",
-            temperature=0.2,
-            api_key=os.getenv("OPENAI_API_KEY"),
-        )
-    elif provider == "openrouter":
-        from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
-            model=model_name or "meta-llama/llama-3.1-8b-instruct:free",
-            temperature=0.2,
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-            base_url="https://openrouter.ai/api/v1",
-            default_headers={
-                "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "http://localhost:5000"),
-                "X-Title": os.getenv("OPENROUTER_SITE_NAME", "Pooja Ecommerce"),
-            },
-        )
-    elif provider == "google":
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        return ChatGoogleGenerativeAI(
-            model=model_name or "gemini-1.5-flash",
-            temperature=0.2,
-            google_api_key=os.getenv("GOOGLE_API_KEY"),
-        )
-    elif provider == "anthropic":
-        from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(
-            model=model_name or "claude-3-haiku-20240307",
-            temperature=0.2,
-            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
-        )
-    elif provider == "groq":
-        from langchain_groq import ChatGroq
-        return ChatGroq(
-            model=model_name or "llama-3.1-8b-instant",
-            temperature=0.2,
-            groq_api_key=os.getenv("GROQ_API_KEY"),
-        )
-    else:
-        raise ValueError(
-            f"Unknown LLM_PROVIDER: {provider!r}. "
-            "Choose from: openai, openrouter, google, anthropic, groq"
-        )
-
+    # if provider == "openai":
+    #     from langchain_openai import ChatOpenAI
+    #     return ChatOpenAI(
+    #         model=model_name or "gpt-4o-mini",
+    #         temperature=0.2,
+    #         api_key=os.getenv("OPENAI_API_KEY"),
+    #     )
+    # elif provider == "openrouter":
+    #     from langchain_openai import ChatOpenAI
+    #     return ChatOpenAI(
+    #         model=model_name or "meta-llama/llama-3.1-8b-instruct:free",
+    #         temperature=0.2,
+    #         api_key=os.getenv("OPENROUTER_API_KEY"),
+    #         base_url="https://openrouter.ai/api/v1",
+    #         default_headers={
+    #             "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "http://localhost:5000"),
+    #             "X-Title": os.getenv("OPENROUTER_SITE_NAME", "Pooja Ecommerce"),
+    #         },
+    #     )
+    # elif provider == "google":
+    #     from langchain_google_genai import ChatGoogleGenerativeAI
+    #     return ChatGoogleGenerativeAI(
+    #         model=model_name or "gemini-1.5-flash",
+    #         temperature=0.2,
+    #         google_api_key=os.getenv("GOOGLE_API_KEY"),
+    #     )
+    # elif provider == "anthropic":
+    #     from langchain_anthropic import ChatAnthropic
+    #     return ChatAnthropic(
+    #         model=model_name or "claude-3-haiku-20240307",
+    #         temperature=0.2,
+    #         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+    #     )
+    # elif provider == "groq":
+    #     from langchain_groq import ChatGroq
+    #     return ChatGroq(
+    #         model=model_name or "llama-3.1-8b-instant",
+    #         temperature=0.2,
+    #         groq_api_key=os.getenv("GROQ_API_KEY"),
+    #     )
+    # else:
+    #     raise ValueError(
+    #         f"Unknown LLM_PROVIDER: {provider!r}. "
+    #         "Choose from: openai, openrouter, google, anthropic, groq"
+    #     )
+    from langchain_ollama import ChatOllama
+    return ChatOllama(model="gemma4:e2b")
 
 # ─── Format retrieved docs for the prompt ────────────────────────────────────
 def _format_docs(docs: List[Document]) -> str:

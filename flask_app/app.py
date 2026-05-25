@@ -314,7 +314,7 @@ def admin_reindex():
         return jsonify({'error': 'PINECONE_API_KEY not configured.'}), 503
     try:
         from rag.indexer import index_all_products
-        count = index_all_products(app)
+        count = index_all_products(app, Product)
         return jsonify({'success': True, 'indexed': count})
     except Exception as e:
         app.logger.error(f'Reindex error: {e}')

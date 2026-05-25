@@ -103,14 +103,18 @@ def _product_to_document(product) -> Document:
     return Document(page_content=content, metadata=metadata)
 
 
-def index_all_products(app=None):
+def index_all_products(app=None, product_model=None):
     """
     Index all products into Pinecone.
 
     Args:
         app: Flask app instance (required when called from within the app context).
              If None, creates its own app context.
+        product_model: Product SQLAlchemy model bound to the provided app.
     """
+    if app is not None and product_model is None:
+        raise RuntimeError("product_model is required when passing a Flask app")
+
     api_key = os.environ.get("PINECONE_API_KEY")
     index_name = os.environ.get("PINECONE_INDEX_NAME", "pooja-store")
 
@@ -125,19 +129,17 @@ def index_all_products(app=None):
     # Need Flask app context to query the DB
     if app is not None:
         with app.app_context():
-            return _do_index(index, index_name, embeddings, app)
+            return _do_index(index, index_name, embeddings, product_model)
     else:
         # Running as standalone script — create the app ourselves
         from app import app as flask_app, Product, init_db
         init_db()
         with flask_app.app_context():
-            return _do_index(index, index_name, embeddings, flask_app)
+            return _do_index(index, index_name, embeddings, Product)
 
 
-def _do_index(index, index_name, embeddings, app):
-    from app import Product
-
-    products = Product.query.all()
+def _do_index(index, index_name, embeddings, product_model):
+    products = product_model.query.all()
     if not products:
         print("[indexer] No products found in database.")
         return 0
