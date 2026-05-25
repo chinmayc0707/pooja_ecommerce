@@ -302,7 +302,12 @@
             <li><a href="#brass-items">Brass Items</a></li>
             <li><a href="#incense">Incense & Fragrance</a></li>
             <li><a href="#fragrance">Fragrances</a></li>
+            {% if current_user %}
+            <li><a href="/admin" style="color: var(--colors-primary); font-weight: 600;">Admin</a></li>
+            <li><a href="/logout" style="color: var(--colors-primary); font-weight: 600;">Logout</a></li>
+            {% else %}
             <li><a href="/login" style="color: var(--colors-primary); font-weight: 600;">Login</a></li>
+            {% endif %}
             <li>
                 <a href="/cart" class="cart-btn">
                     <svg class="cart-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">

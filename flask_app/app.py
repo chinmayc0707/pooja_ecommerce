@@ -76,6 +76,19 @@ def token_required(f):
         return f(*args, **kwargs)
     return decorated
 
+
+@app.context_processor
+def inject_user():
+    token = request.cookies.get('auth_token')
+    if token:
+        try:
+            data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            user = User.query.filter_by(username=data['user']).first()
+            return dict(current_user=user)
+        except Exception:
+            pass
+    return dict(current_user=None)
+
 @app.route('/')
 def index():
     all_products = Product.query.all()
@@ -134,6 +147,20 @@ def remove_from_cart(product_id):
 def clear_cart():
     session.pop('cart', None)
     return redirect(url_for('view_cart'))
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if User.query.filter_by(username=username).first():
+            return render_template('register.html', error="Username already exists")
+        new_user = User(username=username, password=password)
+        db.session.add(new_user)
+        db.session.commit()
+        return redirect(url_for('login'))
+    return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
