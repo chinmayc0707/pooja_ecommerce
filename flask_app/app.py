@@ -50,12 +50,12 @@ def init_db():
         
         if not Product.query.first():
             starter_products = [
-                Product(name="Pure Brass Diya", category="Brass Items", price=499.0, stock=45, description="Hand-polished traditional brass lamps.", image_url="https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000"),
-                Product(name="Organic Agarbatti", category="Incense", price=199.0, stock=120, description="Naturally scented incense sticks.", image_url="https://images.unsplash.com/photo-1602928321679-56077325677c?auto=format&fit=crop&q=80&w=1000"),
-                Product(name="Puja Thali Set", category="Brass Items", price=1299.0, stock=12, description="All-in-one elegant brass thali set.", image_url="https://images.unsplash.com/photo-1561489573-316527703983?auto=format&fit=crop&q=80&w=1000"),
-                Product(name="Sandalwood Powder", category="Fragrance", price=250.0, stock=60, description="Premium grade naturally sourced sandalwood.", image_url="https://images.unsplash.com/photo-159543B95956D-C9D7A6E1A"),
-                Product(name="Copper Kalash", category="Brass Items", price=750.0, stock=20, description="Pure copper vessel for ritual offerings.", image_url="https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000"),
-                Product(name="Premium Camphor", category="Fragrance", price=150.0, stock=100, description="Pure smokeless camphor crystals.", image_url="https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000"),
+                Product(name="Pure Brass Diya", category="Brass Items", price=499.0, stock=45, description="Hand-polished traditional brass lamps.", image_url="https://picsum.photos/seed/diya/400/300"),
+                Product(name="Organic Agarbatti", category="Incense", price=199.0, stock=120, description="Naturally scented incense sticks.", image_url="https://picsum.photos/seed/agarbatti/400/300"),
+                Product(name="Puja Thali Set", category="Brass Items", price=1299.0, stock=12, description="All-in-one elegant brass thali set.", image_url="https://picsum.photos/seed/thali/400/300"),
+                Product(name="Sandalwood Powder", category="Fragrance", price=250.0, stock=60, description="Premium grade naturally sourced sandalwood.", image_url="https://picsum.photos/seed/sandalwood/400/300"),
+                Product(name="Copper Kalash", category="Brass Items", price=750.0, stock=20, description="Pure copper vessel for ritual offerings.", image_url="https://picsum.photos/seed/kalash/400/300"),
+                Product(name="Premium Camphor", category="Fragrance", price=150.0, stock=100, description="Pure smokeless camphor crystals.", image_url="https://picsum.photos/seed/camphor/400/300"),
             ]
             db.session.add_all(starter_products)
             db.session.commit()
