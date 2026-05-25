@@ -76,6 +76,37 @@ def token_required(f):
         return f(*args, **kwargs)
     return decorated
 
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.cookies.get('auth_token')
+        if not token:
+            return redirect(url_for('login'))
+        try:
+            data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            user = User.query.filter_by(username=data['user']).first()
+            if not user or data['user'] != 'admin':
+                return redirect(url_for('index'))
+        except:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+
+@app.context_processor
+def inject_user():
+    token = request.cookies.get('auth_token')
+    if token:
+        try:
+            data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            user = User.query.filter_by(username=data['user']).first()
+            if user:
+                return dict(current_user=data['user'])
+        except Exception:
+            pass
+    return dict(current_user=None)
+
 @app.route('/')
 def index():
     all_products = Product.query.all()
@@ -146,7 +177,7 @@ def login():
                 'user': username,
                 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
             }, JWT_SECRET, algorithm="HS256")
-            response = make_response(redirect(url_for('admin')))
+            response = make_response(redirect(url_for('index')))
             response.set_cookie('auth_token', token)
             return response
         else:
@@ -154,7 +185,7 @@ def login():
     return render_template('login.html')
 
 @app.route('/admin')
-@token_required
+@admin_required
 def admin():
     products = Product.query.all()
     categories = db.session.query(Product.category).distinct().all()
@@ -164,7 +195,7 @@ def admin():
     return render_template('admin.html', products=products, admin_user=data['user'], categories=category_list)
 
 @app.route('/add-product', methods=['POST'])
-@token_required
+@admin_required
 def add_product():
     name = request.form.get('name')
     category = request.form.get('category')
@@ -192,7 +223,7 @@ def add_product():
     return redirect(url_for('admin'))
 
 @app.route('/edit-product/<int:id>', methods=['POST'])
-@token_required
+@admin_required
 def edit_product(id):
     product = Product.query.get_or_404(id)
     product.name = request.form.get('name')
@@ -218,7 +249,7 @@ def edit_product(id):
     return redirect(url_for('admin'))
 
 @app.route('/delete-product/<int:id>', methods=['POST'])
-@token_required
+@admin_required
 def delete_product(id):
     product = Product.query.get_or_404(id)
     product_id = product.id
@@ -229,7 +260,7 @@ def delete_product(id):
     return redirect(url_for('admin'))
 
 @app.route('/change-password', methods=['POST'])
-@token_required
+@admin_required
 def change_password():
     new_username = request.form.get('new_username')
     new_password = request.form.get('new_password')
@@ -244,7 +275,7 @@ def change_password():
             'user': new_username,
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
         }, JWT_SECRET, algorithm="HS256")
-        response = make_response(redirect(url_for('admin')))
+        response = make_response(redirect(url_for('index')))
         response.set_cookie('auth_token', new_token)
         return response
     return redirect(url_for('admin'))
@@ -307,7 +338,7 @@ def chat():
 
 # ─── Admin: manual reindex ─────────────────────────────────────────────────────
 @app.route('/admin/reindex', methods=['POST'])
-@token_required
+@admin_required
 def admin_reindex():
     """Reindex all products into Pinecone. Triggered by admin panel button."""
     if not os.environ.get('PINECONE_API_KEY'):

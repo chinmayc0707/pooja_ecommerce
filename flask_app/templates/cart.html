@@ -69,7 +69,16 @@
         <a href="/" class="logo">POOJA ECOMMERCE_</a>
         <ul class="nav-links">
             <li><a href="/">Home</a></li>
-            <li><a href="/login">Login</a></li>
+            {% if current_user %}
+                {% if current_user == 'admin' %}
+                    <li><a href="/admin" style="color: var(--colors-primary); font-weight: 600;">Admin Panel</a></li>
+                {% else %}
+                    <li><span style="color: var(--colors-primary); font-weight: 600;">{{ current_user[:5] + '...' if current_user|length > 5 else current_user }}</span></li>
+                {% endif %}
+                <li><a href="/logout">Logout</a></li>
+            {% else %}
+                <li><a href="/login" style="color: var(--colors-primary); font-weight: 600;">Login</a></li>
+            {% endif %}
         </ul>
     </nav>
 
