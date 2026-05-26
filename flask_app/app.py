@@ -2,8 +2,9 @@ import os
 import jwt
 import datetime
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, make_response, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, make_response, flash, session, jsonify, abort
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
@@ -30,6 +31,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -41,12 +43,26 @@ class Product(db.Model):
     image_url = db.Column(db.String(500), nullable=True) # Stores either URL or local path
 
 # Database Initialization
+def _ensure_user_schema():
+    """Add role support for existing SQLite databases created before is_admin."""
+    with db.engine.begin() as connection:
+        columns = connection.execute(text('PRAGMA table_info("user")')).mappings().all()
+        if columns and 'is_admin' not in {column['name'] for column in columns}:
+            connection.execute(text('ALTER TABLE "user" ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0'))
+
+
 def init_db():
     with app.app_context():
         db.create_all()
-        if not User.query.filter_by(username='admin').first():
-            admin = User(username='admin', password='admin')
+        _ensure_user_schema()
+
+        admin = User.query.filter_by(username='admin').first()
+        if admin:
+            admin.is_admin = True
+        elif not User.query.filter_by(is_admin=True).first():
+            admin = User(username='admin', password='admin', is_admin=True)
             db.session.add(admin)
+        db.session.commit()
         
         if not Product.query.first():
             starter_products = [
@@ -60,34 +76,47 @@ def init_db():
             db.session.add_all(starter_products)
             db.session.commit()
 
+def get_current_user():
+    token = request.cookies.get('auth_token')
+    if not token:
+        return None
+    try:
+        data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        user_id = data.get('user_id')
+        if user_id:
+            return db.session.get(User, user_id)
+        username = data.get('user')
+        if username:
+            return User.query.filter_by(username=username).first()
+    except jwt.PyJWTError:
+        return None
+    return None
+
+
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = request.cookies.get('auth_token')
-        if not token:
+        if not get_current_user():
             return redirect(url_for('login'))
-        try:
-            data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            user = User.query.filter_by(username=data['user']).first()
-            if not user:
-                return redirect(url_for('login'))
-        except:
+        return f(*args, **kwargs)
+    return decorated
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user = get_current_user()
+        if not user:
             return redirect(url_for('login'))
+        if not user.is_admin:
+            abort(403)
         return f(*args, **kwargs)
     return decorated
 
 
 @app.context_processor
 def inject_user():
-    token = request.cookies.get('auth_token')
-    if token:
-        try:
-            data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            user = User.query.filter_by(username=data['user']).first()
-            return dict(current_user=user)
-        except Exception:
-            pass
-    return dict(current_user=None)
+    return dict(current_user=get_current_user())
 
 @app.route('/')
 def index():
@@ -156,7 +185,7 @@ def register():
         password = request.form.get('password')
         if User.query.filter_by(username=username).first():
             return render_template('register.html', error="Username already exists")
-        new_user = User(username=username, password=password)
+        new_user = User(username=username, password=password, is_admin=False)
         db.session.add(new_user)
         db.session.commit()
         return redirect(url_for('login'))
@@ -170,10 +199,12 @@ def login():
         user = User.query.filter_by(username=username, password=password).first()
         if user:
             token = jwt.encode({
+                'user_id': user.id,
                 'user': username,
                 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
             }, JWT_SECRET, algorithm="HS256")
-            response = make_response(redirect(url_for('admin')))
+            redirect_endpoint = 'admin' if user.is_admin else 'index'
+            response = make_response(redirect(url_for(redirect_endpoint)))
             response.set_cookie('auth_token', token)
             return response
         else:
@@ -181,17 +212,16 @@ def login():
     return render_template('login.html')
 
 @app.route('/admin')
-@token_required
+@admin_required
 def admin():
     products = Product.query.all()
     categories = db.session.query(Product.category).distinct().all()
     category_list = [c[0] for c in categories]
-    token = request.cookies.get('auth_token')
-    data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    return render_template('admin.html', products=products, admin_user=data['user'], categories=category_list)
+    user = get_current_user()
+    return render_template('admin.html', products=products, admin_user=user.username, categories=category_list)
 
 @app.route('/add-product', methods=['POST'])
-@token_required
+@admin_required
 def add_product():
     name = request.form.get('name')
     category = request.form.get('category')
@@ -219,7 +249,7 @@ def add_product():
     return redirect(url_for('admin'))
 
 @app.route('/edit-product/<int:id>', methods=['POST'])
-@token_required
+@admin_required
 def edit_product(id):
     product = Product.query.get_or_404(id)
     product.name = request.form.get('name')
@@ -245,7 +275,7 @@ def edit_product(id):
     return redirect(url_for('admin'))
 
 @app.route('/delete-product/<int:id>', methods=['POST'])
-@token_required
+@admin_required
 def delete_product(id):
     product = Product.query.get_or_404(id)
     product_id = product.id
@@ -256,18 +286,26 @@ def delete_product(id):
     return redirect(url_for('admin'))
 
 @app.route('/change-password', methods=['POST'])
-@token_required
+@admin_required
 def change_password():
     new_username = request.form.get('new_username')
     new_password = request.form.get('new_password')
-    token = request.cookies.get('auth_token')
-    data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    user = User.query.filter_by(username=data['user']).first()
+    user = get_current_user()
     if user and new_username and new_password:
+        existing_user = User.query.filter(User.username == new_username, User.id != user.id).first()
+        if existing_user:
+            return render_template(
+                'admin.html',
+                products=Product.query.all(),
+                admin_user=user.username,
+                categories=[c[0] for c in db.session.query(Product.category).distinct().all()],
+                error="Username already exists"
+            ), 400
         user.username = new_username
         user.password = new_password
         db.session.commit()
         new_token = jwt.encode({
+            'user_id': user.id,
             'user': new_username,
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
         }, JWT_SECRET, algorithm="HS256")
@@ -334,7 +372,7 @@ def chat():
 
 # ─── Admin: manual reindex ─────────────────────────────────────────────────────
 @app.route('/admin/reindex', methods=['POST'])
-@token_required
+@admin_required
 def admin_reindex():
     """Reindex all products into Pinecone. Triggered by admin panel button."""
     if not os.environ.get('PINECONE_API_KEY'):

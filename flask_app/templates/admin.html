@@ -40,6 +40,7 @@
         
         .settings-section { background: var(--colors-cream); border: 1px solid var(--colors-beige-deep); padding: 32px; border-radius: var(--rounded-lg); margin-bottom: 48px; max-width: 600px; }
         .settings-section h3 { font-family: 'Playfair Display', serif; font-size: 24px; margin-bottom: 20px; }
+        .error-msg { background: #fee2e2; color: #b91c1c; padding: 12px; border-radius: var(--rounded-md); font-size: 13px; margin-bottom: 24px; max-width: 600px; }
         .settings-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .form-group { display: flex; flex-direction: column; gap: 8px; }
         .form-group label { font-size: 13px; font-weight: 500; color: var(--colors-slate); }
@@ -101,6 +102,10 @@
             <h1>Welcome, {{ admin_user }}</h1>
             <button onclick="openModal('add')" class="btn-add">+ Add New Product</button>
         </div>
+
+        {% if error %}
+        <div class="error-msg">{{ error }}</div>
+        {% endif %}
 
         <div class="settings-section">
             <h3>Account Settings</h3>

@@ -305,10 +305,8 @@
             <li><a href="#incense">Incense & Fragrance</a></li>
             <li><a href="#fragrance">Fragrances</a></li>
             {% if current_user %}
-            {% if current_user.username|lower == "admin" %}
+            {% if current_user.is_admin %}
             <li><a href="/admin" style="color: var(--colors-primary); font-weight: 600;">Admin</a></li>
-            {% else %}
-            <li><a href="/admin" style="color: var(--colors-primary); font-weight: 600;">{{ current_user.username[0]|upper }}</a></li>
             {% endif %}
             <li><a href="/logout" style="color: var(--colors-primary); font-weight: 600;">Logout</a></li>
             {% else %}
