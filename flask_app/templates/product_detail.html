@@ -78,7 +78,11 @@
         <ul class="nav-links">
             <li><a href="/">Home</a></li>
             {% if current_user %}
+            {% if current_user.username|lower == "admin" %}
             <li><a href="/admin">Admin</a></li>
+            {% else %}
+            <li><a href="/admin">{{ current_user.username[0]|upper }}</a></li>
+            {% endif %}
             <li><a href="/logout">Logout</a></li>
             {% else %}
             <li><a href="/login">Login</a></li>
