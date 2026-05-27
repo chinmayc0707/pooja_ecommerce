@@ -24,9 +24,17 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::selection { background-color: #FF5C00; color: white; }
         ::-moz-selection { background-color: #FF5C00; color: white; }
-        body { font-family: 'Inter', sans-serif; background-color: var(--colors-canvas); color: var(--colors-ink); display: flex; min-height: 100vh; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--colors-canvas); color: var(--colors-ink); display: flex; flex-direction: column; min-height: 100vh; }
         
-        .sidebar { width: 260px; background: var(--colors-cream); border-right: 1px solid var(--colors-beige-deep); display: flex; flex-direction: column; position: fixed; height: 100vh; }
+        nav { position: sticky; top: 0; height: 64px; background: var(--colors-canvas); border-bottom: 1px solid var(--colors-hairline-soft); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 100; width: 100%; }
+        .logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; text-decoration: none; color: var(--colors-ink); }
+        .nav-links { display: flex; gap: 24px; align-items: center; list-style: none; }
+        .nav-links a { text-decoration: none; color: var(--colors-slate); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--colors-primary); }
+
+        .container-main { display: flex; flex-grow: 1; }
+
+        .sidebar { width: 260px; background: var(--colors-cream); border-right: 1px solid var(--colors-beige-deep); display: flex; flex-direction: column; position: fixed; height: calc(100vh - 64px); top: 64px; }
         .sidebar-header { padding: 32px; border-bottom: 1px solid var(--colors-beige-deep); }
         .sidebar-header h2 { font-family: 'Playfair Display', serif; font-size: 20px; }
         .sidebar-nav { padding: 24px; list-style: none; flex-grow: 1; }
@@ -83,7 +91,22 @@
     </style>
 </head>
 <body>
-    <div class="sidebar">
+    <nav>
+        <a href="/" class="logo">POOJA ECOMMERCE_</a>
+        <ul class="nav-links">
+            <li><a href="/">Home</a></li>
+            {% if current_user %}
+            {% if current_user.is_admin %}
+            <li><a href="/admin" style="color: var(--colors-primary); font-weight: 600;">Admin</a></li>
+            {% endif %}
+            <li><a href="/logout" style="color: var(--colors-primary); font-weight: 600;">Logout</a></li>
+            {% else %}
+            <li><a href="/login" style="color: var(--colors-primary); font-weight: 600;">Login</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    <div class="container-main">
+        <div class="sidebar">
         <div class="sidebar-header">
             <h2>Pooja Admin_</h2>
         </div>
@@ -163,6 +186,7 @@
         </div>
     </div>
 
+    </div>
     <datalist id="category-list">
         {% for category in categories %}
         <option value="{{ category }}">
