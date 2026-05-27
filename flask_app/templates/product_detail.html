@@ -93,7 +93,7 @@
     <div class="container">
         <div class="product-grid">
             <div class="product-image-container">
-                <img src="{{ product.image_url if product.image_url else 'https://via.placeholder.com/600x600?text=Divine+Product' }}" alt="{{ product.name }}" class="product-image">
+                <img src="{{ catalog_image_url(product.image_url) if product.image_url else 'https://via.placeholder.com/600x600?text=Divine+Product' }}" alt="{{ product.name }}" class="product-image">
             </div>
             <div class="product-info">
                 <span class="category-tag">{{ product.category }}</span>

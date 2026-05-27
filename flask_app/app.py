@@ -115,8 +115,8 @@ def admin_required(f):
 
 
 @app.context_processor
-def inject_user():
-    return dict(current_user=get_current_user())
+def inject_globals():
+    return dict(current_user=get_current_user(), catalog_image_url=_catalog_image_url)
 
 
 def _catalog_image_url(image_url):

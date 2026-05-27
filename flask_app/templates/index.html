@@ -380,7 +380,7 @@
             {% for product in products %}
             <div class="card {{ 'card-cream' if loop.index % 2 == 0 }}">
                 <div class="product-img-container">
-                    <img src="{{ product.image_url if product.image_url else 'https://via.placeholder.com/300x200?text=Divine+Product' }}" alt="{{ product.name }}" class="product-img">
+                    <img src="{{ catalog_image_url(product.image_url) if product.image_url else 'https://via.placeholder.com/300x200?text=Divine+Product' }}" alt="{{ product.name }}" class="product-img">
                 </div>
                 <h3>{{ product.name }}</h3>
                 <p>{{ product.description[:100] }}{% if product.description|length > 100 %}...{% endif %}</p>
