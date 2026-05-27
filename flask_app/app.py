@@ -15,6 +15,16 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, 'templates')
 db_path = os.path.join(base_dir, 'pooja_store.db')
 UPLOAD_FOLDER = os.path.join(base_dir, 'static', 'uploads')
+PRODUCT_IMAGE_PLACEHOLDER = 'product-placeholder.svg'
+
+STARTER_PRODUCT_IMAGE_FILES = {
+    "Pure Brass Diya": "ChatGPT_Image_May_27_2026_01_18_55_PM.png",
+    "Organic Agarbatti": "ChatGPT_Image_May_27_2026_01_27_26_PM.png",
+    "Puja Thali Set": "ChatGPT_Image_May_27_2026_01_22_05_PM.png",
+    "Sandalwood Powder": "ChatGPT_Image_May_27_2026_01_22_55_PM.png",
+    "Copper Kalash": "ChatGPT_Image_May_27_2026_01_26_05_PM.png",
+    "Premium Camphor": "ChatGPT_Image_May_27_2026_01_24_00_PM.png",
+}
 
 app = Flask(__name__, template_folder=template_dir)
 app.secret_key = 'pooja_divine_secret_key'
@@ -53,6 +63,7 @@ def _ensure_user_schema():
 
 def init_db():
     with app.app_context():
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
         db.create_all()
         _ensure_user_schema()
 
@@ -66,15 +77,16 @@ def init_db():
         
         if not Product.query.first():
             starter_products = [
-                Product(name="Pure Brass Diya", category="Brass Items", price=499.0, stock=45, description="Hand-polished traditional brass lamps.", image_url="https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000"),
-                Product(name="Organic Agarbatti", category="Incense", price=199.0, stock=120, description="Naturally scented incense sticks.", image_url="https://images.unsplash.com/photo-1602928321679-56077325677c?auto=format&fit=crop&q=80&w=1000"),
-                Product(name="Puja Thali Set", category="Brass Items", price=1299.0, stock=12, description="All-in-one elegant brass thali set.", image_url="https://images.unsplash.com/photo-1561489573-316527703983?auto=format&fit=crop&q=80&w=1000"),
-                Product(name="Sandalwood Powder", category="Fragrance", price=250.0, stock=60, description="Premium grade naturally sourced sandalwood.", image_url="https://images.unsplash.com/photo-159543B95956D-C9D7A6E1A"),
-                Product(name="Copper Kalash", category="Brass Items", price=750.0, stock=20, description="Pure copper vessel for ritual offerings.", image_url="https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000"),
-                Product(name="Premium Camphor", category="Fragrance", price=150.0, stock=100, description="Pure smokeless camphor crystals.", image_url="https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000"),
+                Product(name="Pure Brass Diya", category="Brass Items", price=499.0, stock=45, description="Hand-polished traditional brass lamps.", image_url=_starter_product_image_url("Pure Brass Diya", "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000")),
+                Product(name="Organic Agarbatti", category="Incense", price=199.0, stock=120, description="Naturally scented incense sticks.", image_url=_starter_product_image_url("Organic Agarbatti", "https://images.unsplash.com/photo-1602928321679-56077325677c?auto=format&fit=crop&q=80&w=1000")),
+                Product(name="Puja Thali Set", category="Brass Items", price=1299.0, stock=12, description="All-in-one elegant brass thali set.", image_url=_starter_product_image_url("Puja Thali Set", "https://images.unsplash.com/photo-1561489573-316527703983?auto=format&fit=crop&q=80&w=1000")),
+                Product(name="Sandalwood Powder", category="Fragrance", price=250.0, stock=60, description="Premium grade naturally sourced sandalwood.", image_url=_starter_product_image_url("Sandalwood Powder", "https://images.unsplash.com/photo-159543B95956D-C9D7A6E1A")),
+                Product(name="Copper Kalash", category="Brass Items", price=750.0, stock=20, description="Pure copper vessel for ritual offerings.", image_url=_starter_product_image_url("Copper Kalash", "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000")),
+                Product(name="Premium Camphor", category="Fragrance", price=150.0, stock=100, description="Pure smokeless camphor crystals.", image_url=_starter_product_image_url("Premium Camphor", "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000")),
             ]
             db.session.add_all(starter_products)
-            db.session.commit()
+        _refresh_starter_product_images()
+        db.session.commit()
 
 def get_current_user():
     token = request.cookies.get('auth_token')
@@ -116,7 +128,31 @@ def admin_required(f):
 
 @app.context_processor
 def inject_globals():
-    return dict(current_user=get_current_user(), catalog_image_url=_catalog_image_url)
+    return dict(
+        current_user=get_current_user(),
+        catalog_image_url=_catalog_image_url,
+        image_placeholder_url=_image_placeholder_url,
+    )
+
+
+def _image_placeholder_url():
+    return url_for('static', filename=PRODUCT_IMAGE_PLACEHOLDER)
+
+
+def _starter_product_image_url(product_name, fallback_url=None):
+    filename = STARTER_PRODUCT_IMAGE_FILES.get(product_name)
+    if filename and os.path.exists(os.path.join(UPLOAD_FOLDER, filename)):
+        return f"static/uploads/{filename}"
+    return fallback_url
+
+
+def _refresh_starter_product_images():
+    starter_names = list(STARTER_PRODUCT_IMAGE_FILES.keys())
+    for product in Product.query.filter(Product.name.in_(starter_names)).all():
+        current_image = (product.image_url or '').strip()
+        local_image = _starter_product_image_url(product.name)
+        if local_image and (not current_image or current_image.startswith('https://images.unsplash.com/')):
+            product.image_url = local_image
 
 
 def _catalog_image_url(image_url):

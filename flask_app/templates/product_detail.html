@@ -75,6 +75,7 @@
     </style>
 </head>
 <body>
+    {% set fallback_image = image_placeholder_url() %}
     <nav>
         <a href="/" class="logo">POOJA ECOMMERCE_</a>
         <ul class="nav-links">
@@ -92,8 +93,9 @@
 
     <div class="container">
         <div class="product-grid">
+            {% set product_image = catalog_image_url(product.image_url) or fallback_image %}
             <div class="product-image-container">
-                <img src="{{ catalog_image_url(product.image_url) if product.image_url else 'https://via.placeholder.com/600x600?text=Divine+Product' }}" alt="{{ product.name }}" class="product-image">
+                <img src="{{ product_image }}" alt="{{ product.name }}" class="product-image" onerror="this.onerror=null;this.src='{{ fallback_image }}';">
             </div>
             <div class="product-info">
                 <span class="category-tag">{{ product.category }}</span>

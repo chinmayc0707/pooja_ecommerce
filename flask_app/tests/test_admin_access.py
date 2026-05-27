@@ -69,3 +69,19 @@ def test_seed_admin_still_has_admin_access(client):
     admin_response = client.get("/admin")
     assert admin_response.status_code == 200
     assert b"Welcome, admin" in admin_response.data
+
+
+def test_local_product_images_render_with_static_urls(client):
+    with app.app_context():
+        product = Product.query.first()
+        product.image_url = r"static\uploads\local-product.png"
+        db.session.commit()
+        product_id = product.id
+
+    home_response = client.get("/")
+    detail_response = client.get(f"/product/{product_id}")
+
+    assert b'src="/static/uploads/local-product.png"' in home_response.data
+    assert b'src="/static/uploads/local-product.png"' in detail_response.data
+    assert b"/static/product-placeholder.svg" in home_response.data
+    assert b"/static/product-placeholder.svg" in detail_response.data

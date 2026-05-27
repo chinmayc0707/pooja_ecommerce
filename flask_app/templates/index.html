@@ -311,6 +311,7 @@
     </script>
 </head>
 <body>
+    {% set fallback_image = image_placeholder_url() %}
     <nav>
         <a href="/" class="logo">POOJA ECOMMERCE_</a>
         <ul class="nav-links">
@@ -350,6 +351,7 @@
             rtrvr-ls="5~hs,6~hs,8~hs,9~hs"
             {% if hero_initial_image %}style="background-image: url({{ hero_initial_image|tojson }});"{% endif %}
             data-hero-categories="{{ hero_slides_by_category|tojson|forceescape }}"
+            data-hero-fallback="{{ fallback_image }}"
         >
             {% if hero_slides_by_category %}
             <div class="hero-category-controls" aria-label="Featured product categories">
@@ -378,9 +380,10 @@
         </div>
         <div class="grid">
             {% for product in products %}
+            {% set product_image = catalog_image_url(product.image_url) or fallback_image %}
             <div class="card {{ 'card-cream' if loop.index % 2 == 0 }}">
                 <div class="product-img-container">
-                    <img src="{{ catalog_image_url(product.image_url) if product.image_url else 'https://via.placeholder.com/300x200?text=Divine+Product' }}" alt="{{ product.name }}" class="product-img">
+                    <img src="{{ product_image }}" alt="{{ product.name }}" class="product-img" onerror="this.onerror=null;this.src='{{ fallback_image }}';">
                 </div>
                 <h3>{{ product.name }}</h3>
                 <p>{{ product.description[:100] }}{% if product.description|length > 100 %}...{% endif %}</p>
@@ -430,10 +433,32 @@
             let categoryIndex = 0;
             let slideIndex = 0;
             let timerId;
+            let imageRequestId = 0;
+            const fallbackImage = hero.dataset.heroFallback || '';
+
+            const cssUrl = (value) => String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            const applyBackground = (image) => {
+                hero.style.backgroundImage = `url("${cssUrl(image)}")`;
+            };
 
             const setBackground = (image) => {
+                const requestId = ++imageRequestId;
                 hero.classList.add('is-changing');
-                hero.style.backgroundImage = `url("${String(image).replace(/"/g, '\\"')}")`;
+                const targetImage = image || fallbackImage;
+
+                if (!targetImage) {
+                    window.setTimeout(() => hero.classList.remove('is-changing'), 240);
+                    return;
+                }
+
+                const preview = new Image();
+                preview.onload = () => {
+                    if (requestId === imageRequestId) applyBackground(targetImage);
+                };
+                preview.onerror = () => {
+                    if (requestId === imageRequestId && fallbackImage) applyBackground(fallbackImage);
+                };
+                preview.src = targetImage;
                 window.setTimeout(() => hero.classList.remove('is-changing'), 240);
             };
 
