@@ -132,7 +132,7 @@
                     <span>₹{{ "%.2f"|format(total) }}</span>
                 </div>
                 <button class="btn-checkout">Proceed to Checkout</button>
-                <a href="/clear_cart" class="btn-clear">Clear Cart</a>
+                <a href="/clear_cart" class="btn-clear" onclick="return confirm('Are you sure you want to clear your cart?');">Clear Cart</a>
             </div>
         </div>
         {% else %}
