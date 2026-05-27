@@ -27,8 +27,8 @@ STARTER_PRODUCT_IMAGE_FILES = {
 }
 
 app = Flask(__name__, template_folder=template_dir)
-app.secret_key = os.environ.get('SECRET_KEY', 'pooja_divine_secret_key')
-JWT_SECRET = os.environ.get('JWT_SECRET', 'super_secret_jwt_key')
+app.secret_key = os.environ.get('SECRET_KEY')
+JWT_SECRET = os.environ.get('JWT_SECRET')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Database Configuration
