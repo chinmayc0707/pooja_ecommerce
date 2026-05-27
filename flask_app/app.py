@@ -287,7 +287,7 @@ def login():
             }, JWT_SECRET, algorithm="HS256")
             redirect_endpoint = 'admin' if user.is_admin else 'index'
             response = make_response(redirect(url_for(redirect_endpoint)))
-            response.set_cookie('auth_token', token)
+            response.set_cookie('auth_token', token, httponly=True, samesite='Lax', secure=not app.debug, max_age=24 * 3600)
             return response
         else:
             return render_template('login.html', error="Invalid credentials")
@@ -392,14 +392,14 @@ def change_password():
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
         }, JWT_SECRET, algorithm="HS256")
         response = make_response(redirect(url_for('admin')))
-        response.set_cookie('auth_token', new_token)
+        response.set_cookie('auth_token', new_token, httponly=True, samesite='Lax', secure=not app.debug, max_age=24 * 3600)
         return response
     return redirect(url_for('admin'))
 
 @app.route('/logout')
 def logout():
     response = make_response(redirect(url_for('index')))
-    response.set_cookie('auth_token', '', expires=0)
+    response.set_cookie('auth_token', '', expires=0, httponly=True, samesite='Lax', secure=not app.debug)
     return response
 
 # ─── RAG helper functions ─────────────────────────────────────────────────────
