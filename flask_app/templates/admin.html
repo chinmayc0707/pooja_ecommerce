@@ -24,9 +24,15 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::selection { background-color: #FF5C00; color: white; }
         ::-moz-selection { background-color: #FF5C00; color: white; }
-        body { font-family: 'Inter', sans-serif; background-color: var(--colors-canvas); color: var(--colors-ink); display: flex; min-height: 100vh; }
+        body { font-family: \'Inter\', sans-serif; background-color: var(--colors-canvas); color: var(--colors-ink); min-height: 100vh; padding-top: 64px; }
         
-        .sidebar { width: 260px; background: var(--colors-cream); border-right: 1px solid var(--colors-beige-deep); display: flex; flex-direction: column; position: fixed; height: 100vh; }
+
+        nav { position: fixed; top: 0; left: 0; right: 0; height: 64px; background: var(--colors-canvas); border-bottom: 1px solid var(--colors-hairline-soft); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 100; }
+        .logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; text-decoration: none; color: var(--colors-ink); }
+        .nav-links { display: flex; gap: 24px; align-items: center; list-style: none; }
+        .nav-links a { text-decoration: none; color: var(--colors-slate); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--colors-primary); }
+        .sidebar { width: 260px; background: var(--colors-cream); border-right: 1px solid var(--colors-beige-deep); display: flex; flex-direction: column; position: fixed; top: 64px; left: 0; bottom: 0; }
         .sidebar-header { padding: 32px; border-bottom: 1px solid var(--colors-beige-deep); }
         .sidebar-header h2 { font-family: 'Playfair Display', serif; font-size: 20px; }
         .sidebar-nav { padding: 24px; list-style: none; flex-grow: 1; }
@@ -34,7 +40,7 @@
         .sidebar-nav a { text-decoration: none; color: var(--colors-slate); font-size: 14px; font-weight: 500; display: block; padding: 12px; border-radius: var(--rounded-md); transition: all 0.2s; }
         .sidebar-nav a:hover, .sidebar-nav a.active { background: var(--colors-primary); color: var(--colors-on-dark); }
 
-        .main-content { margin-left: 260px; flex-grow: 1; padding: 48px; }
+        .main-content { margin-left: 260px; padding: 48px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 48px; }
         .header h1 { font-family: 'Playfair Display', serif; font-size: 32px; }
         
@@ -83,6 +89,20 @@
     </style>
 </head>
 <body>
+    <nav>
+        <a href="/" class="logo">POOJA ECOMMERCE_</a>
+        <ul class="nav-links">
+            <li><a href="/">Home</a></li>
+            {% if current_user %}
+            {% if current_user.is_admin %}
+            <li><a href="/admin">Admin</a></li>
+            {% endif %}
+            <li><a href="/logout">Logout</a></li>
+            {% else %}
+            <li><a href="/login">Login</a></li>
+            {% endif %}
+        </ul>
+    </nav>
     <div class="sidebar">
         <div class="sidebar-header">
             <h2>Pooja Admin_</h2>
