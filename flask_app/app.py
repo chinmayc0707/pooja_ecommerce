@@ -130,7 +130,15 @@ def index():
     cart = session.get('cart', [])
     cart_count = len(cart)
     
-    return render_template('index.html', categorized_products=categorized_products, cart_count=cart_count)
+
+    image_slideshow = [
+        "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000",
+        "https://images.unsplash.com/photo-1602928321679-56077325677c?auto=format&fit=crop&q=80&w=1000",
+        "https://images.unsplash.com/photo-1561489573-316527703983?auto=format&fit=crop&q=80&w=1000"
+    ]
+
+    return render_template('index.html', categorized_products=categorized_products, cart_count=cart_count, image_slideshow=image_slideshow)
+
 
 @app.route('/product/<int:product_id>')
 def product_detail(product_id):

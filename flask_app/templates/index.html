@@ -86,7 +86,7 @@
         .hero { display: grid; grid-template-columns: 1fr 1fr; min-height: 80vh; align-items: center; padding: 0 32px; gap: 64px; max-width: 1280px; margin: 0 auto; }
         .hero-content h1 { font-size: 84px; line-height: 1.05; margin-bottom: 24px; color: var(--colors-ink); }
         .hero-content p { font-size: 18px; color: var(--colors-ink-tint); margin-bottom: 32px; max-width: 500px; }
-        .hero-image { width: 100%; height: 600px; border-radius: var(--rounded-lg); background: linear-gradient(135deg, var(--colors-sunshine-700) 0%, var(--colors-primary) 100%); background-image: url('https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000'); background-size: cover; background-position: center; box-shadow: 0 12px 24px rgba(0,0,0,0.1); }
+        .hero-image { width: 100%; height: 600px; border-radius: var(--rounded-lg); background: linear-gradient(135deg, var(--colors-sunshine-700) 0%, var(--colors-primary) 100%); background-image: url('https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000'); background-size: cover; background-position: center; box-shadow: 0 12px 24px rgba(0,0,0,0.1); transition: background-image 1s ease-in-out; }
         .section { padding: 96px 32px; max-width: 1280px; margin: 0 auto; }
         .section-header { text-align: center; margin-bottom: 64px; }
         .section-header h2 { font-size: 52px; margin-bottom: 16px; }
@@ -331,7 +331,7 @@
                 <a href="#brass-items" class="btn-primary" style="background: var(--colors-primary); color: white; padding: 14px 28px; font-size: 16px;">Shop Collections</a>
             </div>
         </div>
-        <div class="hero-image"></div>
+        <div class="hero-image" id="hero-image"></div>
     </header>
 
     {% for category, products in categorized_products.items() %}
@@ -606,5 +606,21 @@
             }
         }
     </script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var imageSlideshow = {{ image_slideshow | tojson | safe }};
+            if (imageSlideshow && imageSlideshow.length > 0) {
+                var heroImage = document.getElementById("hero-image");
+                var currentIndex = 0;
+
+                setInterval(function() {
+                    currentIndex = (currentIndex + 1) % imageSlideshow.length;
+                    heroImage.style.backgroundImage = "url('" + imageSlideshow[currentIndex] + "')";
+                }, 3000); // Change image every 3 seconds
+            }
+        });
+    </script>
 </body>
+
 </html>
