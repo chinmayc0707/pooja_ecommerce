@@ -86,7 +86,19 @@
         .hero { display: grid; grid-template-columns: 1fr 1fr; min-height: 80vh; align-items: center; padding: 0 32px; gap: 64px; max-width: 1280px; margin: 0 auto; }
         .hero-content h1 { font-size: 84px; line-height: 1.05; margin-bottom: 24px; color: var(--colors-ink); }
         .hero-content p { font-size: 18px; color: var(--colors-ink-tint); margin-bottom: 32px; max-width: 500px; }
-        .hero-image { width: 100%; height: 600px; border-radius: var(--rounded-lg); background: linear-gradient(135deg, var(--colors-sunshine-700) 0%, var(--colors-primary) 100%); background-image: url('https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000'); background-size: cover; background-position: center; box-shadow: 0 12px 24px rgba(0,0,0,0.1); }
+        .hero-image { position: relative; width: 100%; height: 600px; border-radius: var(--rounded-lg); overflow: hidden; background: linear-gradient(135deg, var(--colors-sunshine-700) 0%, var(--colors-primary) 100%); background-size: cover; background-position: center; box-shadow: 0 12px 24px rgba(0,0,0,0.1); transition: background-image 0.35s ease, background-position 0.35s ease; }
+        .hero-image::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.22), rgba(0,0,0,0.1) 42%, rgba(0,0,0,0.58)); z-index: 1; pointer-events: none; }
+        .hero-image.is-changing { background-position: center 48%; }
+        .hero-category-controls { position: absolute; top: 20px; left: 20px; right: 20px; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; }
+        .hero-category-tab { border: 1px solid rgba(255,255,255,0.42); background: rgba(26,26,26,0.36); color: white; border-radius: var(--rounded-md); padding: 8px 12px; font: 600 12px/1.2 'Inter', sans-serif; cursor: pointer; backdrop-filter: blur(12px); transition: background 0.2s, color 0.2s, border-color 0.2s; }
+        .hero-category-tab:hover, .hero-category-tab.active { background: white; border-color: white; color: var(--colors-primary-deep); }
+        .hero-slide-meta { position: absolute; left: 24px; bottom: 24px; z-index: 2; max-width: min(420px, calc(100% - 120px)); color: white; text-shadow: 0 2px 12px rgba(0,0,0,0.38); }
+        .hero-category-kicker { display: inline-flex; align-items: center; min-height: 26px; margin-bottom: 10px; padding: 5px 10px; border-radius: var(--rounded-md); background: rgba(255,92,0,0.86); font-size: 12px; font-weight: 700; letter-spacing: 0; }
+        .hero-product-link { display: block; color: white; text-decoration: none; font-family: 'Playfair Display', serif; font-size: 34px; line-height: 1.08; overflow-wrap: anywhere; }
+        .hero-product-link:hover { text-decoration: underline; text-underline-offset: 5px; }
+        .hero-slide-dots { position: absolute; right: 24px; bottom: 30px; z-index: 2; display: flex; gap: 8px; align-items: center; }
+        .hero-slide-dot { width: 9px; height: 9px; border: 0; border-radius: 50%; background: rgba(255,255,255,0.52); cursor: pointer; transition: transform 0.2s, background 0.2s; }
+        .hero-slide-dot.active { background: white; transform: scale(1.25); }
         .section { padding: 96px 32px; max-width: 1280px; margin: 0 auto; }
         .section-header { text-align: center; margin-bottom: 64px; }
         .section-header h2 { font-size: 52px; margin-bottom: 16px; }
@@ -108,6 +120,7 @@
         .footer-links { display: flex; justify-content: center; gap: 32px; margin-bottom: 32px; list-style: none; }
         .footer-links a { color: var(--colors-primary); text-decoration: none; font-size: 14px; font-weight: 500; }
         @media (max-width: 1024px) { .hero { grid-template-columns: 1fr; text-align: center; padding-top: 64px; } .hero-content h1 { font-size: 64px; } .hero-content p { margin: 0 auto 32px; } .hero-image { height: 400px; } }
+        @media (max-width: 640px) { .hero-slide-meta { left: 20px; right: 20px; bottom: 58px; max-width: none; text-align: left; } .hero-product-link { font-size: 26px; } .hero-slide-dots { left: 20px; right: auto; bottom: 24px; } .hero-category-tab { padding: 7px 10px; font-size: 11px; } }
         @media (max-width: 480px) { .hero-content h1 { font-size: 40px; } .nav-links { display: none; } }
 
         /* ── Chat Widget ──────────────────────────────────────────────── */
@@ -331,7 +344,30 @@
                 <a href="#brass-items" class="btn-primary" style="background: var(--colors-primary); color: white; padding: 14px 28px; font-size: 16px;">Shop Collections</a>
             </div>
         </div>
-        <div class="hero-image"></div>
+        <div
+            class="hero-image"
+            id="hero-image"
+            rtrvr-ls="5~hs,6~hs,8~hs,9~hs"
+            {% if hero_initial_image %}style="background-image: url({{ hero_initial_image|tojson }});"{% endif %}
+            data-hero-categories="{{ hero_slides_by_category|tojson|forceescape }}"
+        >
+            {% if hero_slides_by_category %}
+            <div class="hero-category-controls" aria-label="Featured product categories">
+                {% for group in hero_slides_by_category %}
+                <button class="hero-category-tab{% if loop.first %} active{% endif %}" type="button" data-hero-category="{{ loop.index0 }}">
+                    {{ group.category }}
+                </button>
+                {% endfor %}
+            </div>
+            <div class="hero-slide-meta">
+                <span class="hero-category-kicker" id="hero-category-label">{{ hero_slides_by_category[0].category }}</span>
+                <a class="hero-product-link" id="hero-product-link" href="{{ hero_slides_by_category[0].slides[0].url }}">
+                    {{ hero_slides_by_category[0].slides[0].name }}
+                </a>
+            </div>
+            <div class="hero-slide-dots" id="hero-slide-dots" aria-label="Products in selected category"></div>
+            {% endif %}
+        </div>
     </header>
 
     {% for category, products in categorized_products.items() %}
@@ -371,6 +407,108 @@
     </footer>
 
     <script>
+        document.addEventListener('DOMContentLoaded', initHeroSlideshow);
+
+        function initHeroSlideshow() {
+            const hero = document.getElementById('hero-image');
+            if (!hero) return;
+
+            let categories = [];
+            try {
+                categories = JSON.parse(hero.dataset.heroCategories || '[]');
+            } catch (error) {
+                console.error('Unable to load hero slideshow images:', error);
+                return;
+            }
+
+            if (!categories.length) return;
+
+            const categoryLabel = document.getElementById('hero-category-label');
+            const productLink = document.getElementById('hero-product-link');
+            const dots = document.getElementById('hero-slide-dots');
+            const categoryButtons = Array.from(document.querySelectorAll('[data-hero-category]'));
+            let categoryIndex = 0;
+            let slideIndex = 0;
+            let timerId;
+
+            const setBackground = (image) => {
+                hero.classList.add('is-changing');
+                hero.style.backgroundImage = `url("${String(image).replace(/"/g, '\\"')}")`;
+                window.setTimeout(() => hero.classList.remove('is-changing'), 240);
+            };
+
+            const renderDots = (slides) => {
+                if (!dots) return;
+
+                dots.innerHTML = '';
+                slides.forEach((slide, index) => {
+                    const dot = document.createElement('button');
+                    dot.type = 'button';
+                    dot.className = `hero-slide-dot${index === slideIndex ? ' active' : ''}`;
+                    dot.setAttribute('aria-label', `Show ${slide.name}`);
+                    dot.addEventListener('click', () => {
+                        slideIndex = index;
+                        renderHero();
+                        restartTimer();
+                    });
+                    dots.appendChild(dot);
+                });
+            };
+
+            const renderHero = () => {
+                const group = categories[categoryIndex];
+                const slides = group.slides || [];
+                if (!slides.length) return;
+
+                slideIndex = slideIndex % slides.length;
+                const slide = slides[slideIndex];
+                setBackground(slide.image);
+
+                if (categoryLabel) categoryLabel.textContent = group.category;
+                if (productLink) {
+                    productLink.textContent = slide.name;
+                    productLink.href = slide.url;
+                }
+
+                categoryButtons.forEach((button, index) => {
+                    button.classList.toggle('active', index === categoryIndex);
+                    button.setAttribute('aria-pressed', index === categoryIndex ? 'true' : 'false');
+                });
+                renderDots(slides);
+            };
+
+            const goToNextSlide = () => {
+                const group = categories[categoryIndex];
+                const slides = group.slides || [];
+                if (!slides.length) return;
+
+                slideIndex += 1;
+                if (slideIndex >= slides.length) {
+                    categoryIndex = (categoryIndex + 1) % categories.length;
+                    slideIndex = 0;
+                }
+
+                renderHero();
+            };
+
+            const restartTimer = () => {
+                window.clearInterval(timerId);
+                timerId = window.setInterval(goToNextSlide, 4500);
+            };
+
+            categoryButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    categoryIndex = Number(button.dataset.heroCategory);
+                    slideIndex = 0;
+                    renderHero();
+                    restartTimer();
+                });
+            });
+
+            renderHero();
+            restartTimer();
+        }
+
         async function addToCart(button) {
             const productId = button.getAttribute('data-product-id');
             const originalText = button.innerText;

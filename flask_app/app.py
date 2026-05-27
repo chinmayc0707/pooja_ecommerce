@@ -118,6 +118,22 @@ def admin_required(f):
 def inject_user():
     return dict(current_user=get_current_user())
 
+
+def _catalog_image_url(image_url):
+    if not image_url:
+        return None
+
+    image_url = image_url.strip()
+    if image_url.startswith(('http://', 'https://', '/')):
+        return image_url
+
+    normalized = image_url.replace('\\', '/')
+    if normalized.startswith('static/'):
+        normalized = normalized[len('static/'):]
+
+    return url_for('static', filename=normalized)
+
+
 @app.route('/')
 def index():
     all_products = Product.query.all()
@@ -126,11 +142,41 @@ def index():
         if product.category not in categorized_products:
             categorized_products[product.category] = []
         categorized_products[product.category].append(product)
+
+    hero_slides_by_category = []
+    for category, products in categorized_products.items():
+        slides = []
+        for product in products:
+            image = _catalog_image_url(product.image_url)
+            if not image:
+                continue
+
+            slides.append({
+                'name': product.name,
+                'image': image,
+                'url': url_for('product_detail', product_id=product.id),
+            })
+
+        if slides:
+            hero_slides_by_category.append({
+                'category': category,
+                'slides': slides,
+            })
+
+    hero_initial_image = ''
+    if hero_slides_by_category:
+        hero_initial_image = hero_slides_by_category[0]['slides'][0]['image']
     
     cart = session.get('cart', [])
     cart_count = len(cart)
     
-    return render_template('index.html', categorized_products=categorized_products, cart_count=cart_count)
+    return render_template(
+        'index.html',
+        categorized_products=categorized_products,
+        hero_slides_by_category=hero_slides_by_category,
+        hero_initial_image=hero_initial_image,
+        cart_count=cart_count,
+    )
 
 @app.route('/product/<int:product_id>')
 def product_detail(product_id):
