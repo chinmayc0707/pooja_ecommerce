@@ -43,9 +43,14 @@
         .product-info { display: flex; flex-direction: column; }
         .product-info strong { font-size: 16px; color: var(--colors-ink); }
         .product-info span { font-size: 13px; color: var(--colors-slate); }
-        
         .remove-btn { color: #ff0000; text-decoration: none; font-size: 13px; font-weight: 600; transition: opacity 0.2s; }
         .remove-btn:hover { opacity: 0.7; }
+
+        .quantity-control { display: flex; align-items: center; gap: 12px; }
+        .quantity-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 4px; border: 1px solid var(--colors-beige-deep); background: var(--colors-canvas); color: var(--colors-ink); text-decoration: none; font-size: 16px; font-weight: 500; transition: all 0.2s; cursor: pointer; }
+        .quantity-btn:hover { background: var(--colors-cream); border-color: var(--colors-primary); color: var(--colors-primary); }
+        .quantity-value { font-size: 15px; font-weight: 500; min-width: 20px; text-align: center; }
+
 
         .summary-card { background: var(--colors-cream); padding: 32px; border-radius: var(--rounded-lg); border: 1px solid var(--colors-beige-deep); position: sticky; top: 100px; }
         .summary-card h3 { font-family: 'Playfair Display', serif; font-size: 24px; margin-bottom: 24px; }
@@ -108,7 +113,13 @@
                                 </div>
                             </td>
                             <td>₹{{ "%.2f"|format(item.product.price) }}</td>
-                            <td>{{ item.quantity }}</td>
+                            <td>
+                                <div class="quantity-control">
+                                    <a href="/decrease_quantity/{{ item.product.id }}" class="quantity-btn">-</a>
+                                    <span class="quantity-value">{{ item.quantity }}</span>
+                                    <a href="/increase_quantity/{{ item.product.id }}" class="quantity-btn">+</a>
+                                </div>
+                            </td>
                             <td>₹{{ "%.2f"|format(item.subtotal) }}</td>
                             <td><a href="/remove_from_cart/{{ item.product.id }}" class="remove-btn">Remove</a></td>
                         </tr>

@@ -254,11 +254,31 @@ def view_cart():
 def remove_from_cart(product_id):
     if 'cart' in session:
         cart = session['cart']
+        # remove all occurrences
+        cart = [item for item in cart if item != product_id]
+        session['cart'] = cart
+        session.modified = True
+    return redirect(url_for('view_cart'))
+
+@app.route('/increase_quantity/<int:product_id>')
+def increase_quantity(product_id):
+    if 'cart' in session:
+        cart = session['cart']
+        cart.append(product_id)
+        session['cart'] = cart
+        session.modified = True
+    return redirect(url_for('view_cart'))
+
+@app.route('/decrease_quantity/<int:product_id>')
+def decrease_quantity(product_id):
+    if 'cart' in session:
+        cart = session['cart']
         if product_id in cart:
             cart.remove(product_id)
             session['cart'] = cart
             session.modified = True
     return redirect(url_for('view_cart'))
+
 
 @app.route('/clear_cart')
 def clear_cart():
