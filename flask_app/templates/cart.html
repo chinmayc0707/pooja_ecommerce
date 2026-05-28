@@ -164,7 +164,7 @@
             <h2 style="font-family: 'Playfair Display', serif; margin-bottom: 24px;">Complete Payment</h2>
             {% if upi_id %}
                 <p style="margin-bottom: 16px; color: var(--colors-slate);">Scan the QR code below using any UPI app to pay <strong>₹{{ "%.2f"|format(total) }}</strong>.</p>
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa={{ upi_id }}&pn=Pooja%20Store&am={{ total }}&cu=INR" alt="UPI QR Code" style="margin-bottom: 24px; border: 1px solid var(--colors-beige-deep); padding: 8px; border-radius: var(--rounded-md);">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi%3A%2F%2Fpay%3Fpa%3D{{ upi_id }}%26pn%3DPooja%2520Store%26am%3D{{ '%.2f'|format(total) }}%26cu%3DINR" alt="UPI QR Code" style="margin-bottom: 24px; border: 1px solid var(--colors-beige-deep); padding: 8px; border-radius: var(--rounded-md);">
                 <p style="margin-bottom: 24px; color: var(--colors-slate); font-size: 14px;">Paying to UPI ID: <strong>{{ upi_id }}</strong></p>
             {% else %}
                 <p style="margin-bottom: 24px; color: #dc2626;">UPI ID is not configured by the store admin. Online payment is currently unavailable.</p>
