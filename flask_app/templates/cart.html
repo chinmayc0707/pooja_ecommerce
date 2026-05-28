@@ -29,8 +29,10 @@
         nav { position: sticky; top: 0; height: 64px; background: var(--colors-canvas); border-bottom: 1px solid var(--colors-hairline-soft); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 100; }
         .logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; text-decoration: none; color: var(--colors-ink); }
         .nav-links { display: flex; gap: 24px; list-style: none; }
-        .nav-links a { text-decoration: none; color: var(--colors-slate); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+        .nav-links a { position: relative; text-decoration: none; color: var(--colors-slate); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:not(.cart-btn)::after { content: ''; position: absolute; width: 0; height: 2px; bottom: -2px; left: 0; background-color: var(--colors-primary); transition: width 0.3s ease; }
         .nav-links a:hover { color: var(--colors-primary); }
+        .nav-links a:not(.cart-btn):hover::after { width: 100%; }
 
         .container { max-width: 1000px; margin: 64px auto; padding: 0 32px; }
         h1 { font-family: 'Playfair Display', serif; font-size: 42px; margin-bottom: 40px; text-align: center; }
