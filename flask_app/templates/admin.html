@@ -143,6 +143,17 @@
             </form>
         </div>
 
+        <div class="settings-section">
+            <h3>Payment Settings</h3>
+            <form action="/update-upi-id" method="POST" class="settings-form">
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>UPI ID</label>
+                    <input type="text" name="upi_id" placeholder="Enter UPI ID (e.g. user@upi)" value="{{ upi_id }}" style="padding: 10px; border: 1px solid var(--colors-beige-deep); border-radius: var(--rounded-md); font-family: 'Inter', sans-serif;">
+                </div>
+                <button type="submit" class="btn-save">Update UPI ID</button>
+            </form>
+        </div>
+
         <div class="ai-section">
             <h3>🤖 AI Product Sync</h3>
             <p>Re-index all products into the Pinecone vector database so the AI chat assistant reflects your latest catalog. This runs automatically on add/edit/delete, but you can trigger it manually here.</p>

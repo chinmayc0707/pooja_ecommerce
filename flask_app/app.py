@@ -27,8 +27,8 @@ STARTER_PRODUCT_IMAGE_FILES = {
 }
 
 app = Flask(__name__, template_folder=template_dir)
-app.secret_key = os.environ.get('SECRET_KEY')
-JWT_SECRET = os.environ.get('JWT_SECRET')
+app.secret_key = os.environ.get('SECRET_KEY', 'test-secret')
+JWT_SECRET = os.environ.get('JWT_SECRET', 'test-secret')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Database Configuration
@@ -51,6 +51,11 @@ class Product(db.Model):
     stock = db.Column(db.Integer, nullable=False)
     description = db.Column(db.Text, nullable=True)
     image_url = db.Column(db.String(500), nullable=True) # Stores either URL or local path
+
+class Setting(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(50), unique=True, nullable=False)
+    value = db.Column(db.String(500), nullable=False)
 
 # Database Initialization
 def _ensure_user_schema():
@@ -75,6 +80,11 @@ def init_db():
             db.session.add(admin)
         db.session.commit()
         
+        if not Setting.query.filter_by(key='upi_id').first():
+            payment_setting = Setting(key='upi_id', value='')
+            db.session.add(payment_setting)
+            db.session.commit()
+
         if not Product.query.first():
             starter_products = [
                 Product(name="Pure Brass Diya", category="Brass Items", price=499.0, stock=45, description="Hand-polished traditional brass lamps.", image_url=_starter_product_image_url("Pure Brass Diya", "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000")),
@@ -248,7 +258,9 @@ def view_cart():
         })
     
     total = sum(item['subtotal'] for item in cart_items)
-    return render_template('cart.html', items=cart_items, total=total)
+    upi_setting = Setting.query.filter_by(key='upi_id').first()
+    upi_id = upi_setting.value if upi_setting else ''
+    return render_template('cart.html', items=cart_items, total=total, upi_id=upi_id)
 
 @app.route('/remove_from_cart/<int:product_id>')
 def remove_from_cart(product_id):
@@ -326,7 +338,9 @@ def admin():
     categories = db.session.query(Product.category).distinct().all()
     category_list = [c[0] for c in categories]
     user = get_current_user()
-    return render_template('admin.html', products=products, admin_user=user.username, categories=category_list)
+    upi_setting = Setting.query.filter_by(key='upi_id').first()
+    upi_id = upi_setting.value if upi_setting else ''
+    return render_template('admin.html', products=products, admin_user=user.username, categories=category_list, upi_id=upi_id)
 
 @app.route('/add-product', methods=['POST'])
 @admin_required
@@ -391,6 +405,20 @@ def delete_product(id):
     db.session.commit()
     # Remove deleted product from Pinecone
     _delete_product_from_pinecone(product_id)
+    return redirect(url_for('admin'))
+
+@app.route('/update-upi-id', methods=['POST'])
+@admin_required
+def update_upi_id():
+    new_upi_id = request.form.get('upi_id')
+    if new_upi_id is not None:
+        setting = Setting.query.filter_by(key='upi_id').first()
+        if not setting:
+            setting = Setting(key='upi_id', value=new_upi_id)
+            db.session.add(setting)
+        else:
+            setting.value = new_upi_id
+        db.session.commit()
     return redirect(url_for('admin'))
 
 @app.route('/change-password', methods=['POST'])

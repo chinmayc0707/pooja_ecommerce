@@ -149,11 +149,15 @@
                     <span>Shipping</span>
                     <span>Free</span>
                 </div>
-                <div class="summary-total">
+                <div class="summary-row" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--colors-beige-deep);">
+                    <span>UPI ID</span>
+                    <span style="font-weight: 500;">{{ upi_id if upi_id else "Not configured" }}</span>
+                </div>
+                <div class="summary-total" style="margin-top: 16px; padding-top: 16px;">
                     <span>Total</span>
                     <span>₹{{ "%.2f"|format(total) }}</span>
                 </div>
-                <button class="btn-checkout">Proceed to Checkout</button>
+                <button class="btn-checkout" onclick="openCheckoutModal()">Proceed to Checkout</button>
                 <a href="/clear_cart" class="btn-clear" onclick="return confirm('Are you sure you want to clear your cart?');">Clear Cart</a>
             </div>
         </div>
@@ -164,5 +168,26 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- Checkout Modal -->
+    <div id="checkoutModal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
+        <div class="modal-content" style="background: white; padding: 32px; border-radius: var(--rounded-lg); width: 100%; max-width: 400px; text-align: center;">
+            <h2 style="font-family: 'Playfair Display', serif; margin-bottom: 24px;">Complete Payment</h2>
+            {% if upi_id %}
+                <p style="margin-bottom: 16px; color: var(--colors-slate);">Scan the QR code below using any UPI app to pay <strong>₹{{ "%.2f"|format(total) }}</strong>.</p>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi%3A%2F%2Fpay%3Fpa%3D{{ upi_id }}%26pn%3DPooja%2520Store%26am%3D{{ '%.2f'|format(total) }}%26cu%3DINR" alt="UPI QR Code" style="margin-bottom: 24px; border: 1px solid var(--colors-beige-deep); padding: 8px; border-radius: var(--rounded-md);">
+                <p style="margin-bottom: 24px; color: var(--colors-slate); font-size: 14px;">Paying to UPI ID: <strong>{{ upi_id }}</strong></p>
+            {% else %}
+                <p style="margin-bottom: 24px; color: #dc2626;">UPI ID is not configured by the store admin. Online payment is currently unavailable.</p>
+            {% endif %}
+            <button onclick="document.getElementById('checkoutModal').style.display='none'" class="btn-checkout" style="background: var(--colors-slate);">Close</button>
+        </div>
+    </div>
+
+    <script>
+        function openCheckoutModal() {
+            document.getElementById('checkoutModal').style.display = 'flex';
+        }
+    </script>
 </body>
 </html>
