@@ -143,16 +143,12 @@
 
         <div class="settings-section">
             <h3>Payment Settings</h3>
-            <form action="/update-payment-option" method="POST" class="settings-form">
+            <form action="/update-upi-id" method="POST" class="settings-form">
                 <div class="form-group" style="grid-column: span 2;">
-                    <label>Payment Option</label>
-                    <select name="payment_option" required style="padding: 10px; border: 1px solid var(--colors-beige-deep); border-radius: var(--rounded-md); font-family: 'Inter', sans-serif;">
-                        <option value="Cash on Delivery" {% if payment_option == 'Cash on Delivery' %}selected{% endif %}>Cash on Delivery</option>
-                        <option value="Credit/Debit Card" {% if payment_option == 'Credit/Debit Card' %}selected{% endif %}>Credit/Debit Card</option>
-                        <option value="UPI" {% if payment_option == 'UPI' %}selected{% endif %}>UPI</option>
-                    </select>
+                    <label>UPI ID</label>
+                    <input type="text" name="upi_id" placeholder="Enter UPI ID (e.g. user@upi)" value="{{ upi_id }}" style="padding: 10px; border: 1px solid var(--colors-beige-deep); border-radius: var(--rounded-md); font-family: 'Inter', sans-serif;">
                 </div>
-                <button type="submit" class="btn-save">Update Payment Option</button>
+                <button type="submit" class="btn-save">Update UPI ID</button>
             </form>
         </div>
 

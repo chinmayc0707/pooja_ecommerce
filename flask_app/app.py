@@ -80,8 +80,8 @@ def init_db():
             db.session.add(admin)
         db.session.commit()
         
-        if not Setting.query.filter_by(key='payment_option').first():
-            payment_setting = Setting(key='payment_option', value='Cash on Delivery')
+        if not Setting.query.filter_by(key='upi_id').first():
+            payment_setting = Setting(key='upi_id', value='')
             db.session.add(payment_setting)
             db.session.commit()
 
@@ -258,9 +258,9 @@ def view_cart():
         })
     
     total = sum(item['subtotal'] for item in cart_items)
-    payment_setting = Setting.query.filter_by(key='payment_option').first()
-    payment_option = payment_setting.value if payment_setting else 'Cash on Delivery'
-    return render_template('cart.html', items=cart_items, total=total, payment_option=payment_option)
+    upi_setting = Setting.query.filter_by(key='upi_id').first()
+    upi_id = upi_setting.value if upi_setting else ''
+    return render_template('cart.html', items=cart_items, total=total, upi_id=upi_id)
 
 @app.route('/remove_from_cart/<int:product_id>')
 def remove_from_cart(product_id):
@@ -338,9 +338,9 @@ def admin():
     categories = db.session.query(Product.category).distinct().all()
     category_list = [c[0] for c in categories]
     user = get_current_user()
-    payment_setting = Setting.query.filter_by(key='payment_option').first()
-    payment_option = payment_setting.value if payment_setting else 'Cash on Delivery'
-    return render_template('admin.html', products=products, admin_user=user.username, categories=category_list, payment_option=payment_option)
+    upi_setting = Setting.query.filter_by(key='upi_id').first()
+    upi_id = upi_setting.value if upi_setting else ''
+    return render_template('admin.html', products=products, admin_user=user.username, categories=category_list, upi_id=upi_id)
 
 @app.route('/add-product', methods=['POST'])
 @admin_required
@@ -407,17 +407,17 @@ def delete_product(id):
     _delete_product_from_pinecone(product_id)
     return redirect(url_for('admin'))
 
-@app.route('/update-payment-option', methods=['POST'])
+@app.route('/update-upi-id', methods=['POST'])
 @admin_required
-def update_payment_option():
-    new_option = request.form.get('payment_option')
-    if new_option:
-        setting = Setting.query.filter_by(key='payment_option').first()
+def update_upi_id():
+    new_upi_id = request.form.get('upi_id')
+    if new_upi_id is not None:
+        setting = Setting.query.filter_by(key='upi_id').first()
         if not setting:
-            setting = Setting(key='payment_option', value=new_option)
+            setting = Setting(key='upi_id', value=new_upi_id)
             db.session.add(setting)
         else:
-            setting.value = new_option
+            setting.value = new_upi_id
         db.session.commit()
     return redirect(url_for('admin'))
 
