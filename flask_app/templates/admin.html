@@ -141,6 +141,21 @@
             </form>
         </div>
 
+        <div class="settings-section">
+            <h3>Payment Settings</h3>
+            <form action="/update-payment-option" method="POST" class="settings-form">
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>Payment Option</label>
+                    <select name="payment_option" required style="padding: 10px; border: 1px solid var(--colors-beige-deep); border-radius: var(--rounded-md); font-family: 'Inter', sans-serif;">
+                        <option value="Cash on Delivery" {% if payment_option == 'Cash on Delivery' %}selected{% endif %}>Cash on Delivery</option>
+                        <option value="Credit/Debit Card" {% if payment_option == 'Credit/Debit Card' %}selected{% endif %}>Credit/Debit Card</option>
+                        <option value="UPI" {% if payment_option == 'UPI' %}selected{% endif %}>UPI</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-save">Update Payment Option</button>
+            </form>
+        </div>
+
         <div class="ai-section">
             <h3>🤖 AI Product Sync</h3>
             <p>Re-index all products into the Pinecone vector database so the AI chat assistant reflects your latest catalog. This runs automatically on add/edit/delete, but you can trigger it manually here.</p>

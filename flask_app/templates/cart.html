@@ -138,7 +138,11 @@
                     <span>Shipping</span>
                     <span>Free</span>
                 </div>
-                <div class="summary-total">
+                <div class="summary-row" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--colors-beige-deep);">
+                    <span>Payment Method</span>
+                    <span style="font-weight: 500;">{{ payment_option }}</span>
+                </div>
+                <div class="summary-total" style="margin-top: 16px; padding-top: 16px;">
                     <span>Total</span>
                     <span>₹{{ "%.2f"|format(total) }}</span>
                 </div>
