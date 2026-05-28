@@ -422,7 +422,33 @@ def change_password():
         return response
     return redirect(url_for('admin'))
 
+
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+    if user.is_admin:
+        return redirect(url_for('admin'))
+
+    error = None
+    success = None
+
+    if request.method == 'POST':
+        current_password = request.form.get('current_password')
+        new_password = request.form.get('new_password')
+
+        if user.password != current_password:
+            error = "Incorrect current password"
+        else:
+            user.password = new_password
+            db.session.commit()
+            success = "Password updated successfully"
+
+    return render_template('profile.html', error=error, success=success)
+
 @app.route('/logout')
+
 def logout():
     response = make_response(redirect(url_for('index')))
     response.set_cookie('auth_token', '', expires=0, httponly=True, samesite='Lax', secure=not app.debug)

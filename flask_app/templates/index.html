@@ -279,6 +279,11 @@
             font-size: 11px; color: #999; margin-top: 6px; font-style: italic;
         }
     
+
+        .profile-avatar { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background-color: var(--colors-beige-deep); transition: background-color 0.2s; }
+        .profile-avatar:hover { background-color: #d4c8aa; }
+        .profile-avatar img { width: 24px; height: 24px; color: var(--colors-ink); }
+
     </style>
     <!-- Markdown renderer + sanitizer -->
     <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
@@ -319,7 +324,11 @@
             {% if current_user.is_admin %}
             <li><a href="/admin" style="color: var(--colors-primary); font-weight: 600;">Admin</a></li>
             {% endif %}
+            {% if not current_user.is_admin %}
+            <li><a href="/profile" class="profile-avatar"><img src="/static/images/default-avatar.svg" alt="Profile" width="32" height="32" style="border-radius: 50%;"></a></li>
+            {% else %}
             <li><a href="/logout" style="color: var(--colors-primary); font-weight: 600;">Logout</a></li>
+            {% endif %}
             {% else %}
             <li><a href="/login" style="color: var(--colors-primary); font-weight: 600;">Login</a></li>
             {% endif %}

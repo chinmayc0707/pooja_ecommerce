@@ -69,6 +69,11 @@
             .cart-wrapper { grid-template-columns: 1fr; }
             .summary-card { position: static; }
         }
+
+        .profile-avatar { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background-color: var(--colors-beige-deep); transition: background-color 0.2s; }
+        .profile-avatar:hover { background-color: #d4c8aa; }
+        .profile-avatar img { width: 24px; height: 24px; color: var(--colors-ink); }
+
     </style>
 </head>
 <body>
@@ -80,7 +85,11 @@
             {% if current_user.is_admin %}
             <li><a href="/admin">Admin</a></li>
             {% endif %}
+            {% if not current_user.is_admin %}
+            <li><a href="/profile" class="profile-avatar"><img src="/static/images/default-avatar.svg" alt="Profile" width="32" height="32" style="border-radius: 50%; vertical-align: middle;"></a></li>
+            {% else %}
             <li><a href="/logout">Logout</a></li>
+            {% endif %}
             {% else %}
             <li><a href="/login">Login</a></li>
             {% endif %}
