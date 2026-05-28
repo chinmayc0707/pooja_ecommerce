@@ -412,7 +412,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', initHeroSlideshow);
 
-        window.addEventListener('focus', async () => {
+        window.addEventListener('pageshow', async () => {
             try {
                 const response = await fetch('/api/cart_count');
                 if (response.ok) {
