@@ -227,6 +227,12 @@ def add_to_cart(product_id):
     session.modified = True
     return jsonify({"success": True, "cart_count": len(cart)})
 
+
+@app.route('/api/cart_count')
+def api_cart_count():
+    cart = session.get('cart', [])
+    return jsonify({"cart_count": len(cart)})
+
 @app.route('/cart')
 def view_cart():
     cart_ids = session.get('cart', [])

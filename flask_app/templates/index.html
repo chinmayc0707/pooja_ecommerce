@@ -412,6 +412,22 @@
     <script>
         document.addEventListener('DOMContentLoaded', initHeroSlideshow);
 
+        window.addEventListener('pageshow', async () => {
+            try {
+                const response = await fetch('/api/cart_count');
+                if (response.ok) {
+                    const data = await response.json();
+                    const badge = document.getElementById('cart-count');
+                    if (badge) {
+                        badge.innerText = data.cart_count;
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to update cart count on focus:', error);
+            }
+        });
+
+
         function initHeroSlideshow() {
             const hero = document.getElementById('hero-image');
             if (!hero) return;
