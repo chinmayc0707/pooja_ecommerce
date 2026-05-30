@@ -1,4 +1,5 @@
 import os
+import uuid
 import jwt
 import datetime
 from functools import wraps
@@ -7,6 +8,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from supabase import create_client, Client
 
 load_dotenv()
 
@@ -30,6 +32,15 @@ app = Flask(__name__, template_folder=template_dir)
 app.secret_key = os.environ.get('SECRET_KEY', 'test-secret')
 JWT_SECRET = os.environ.get('JWT_SECRET', 'test-secret')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Supabase Initialization
+supabase_url = os.environ.get("SUPABASE_URL")
+supabase_key = os.environ.get("SUPABASE_KEY")
+supabase_client = None
+if supabase_url and supabase_key:
+    supabase_client = create_client(supabase_url, supabase_key)
+
+supabase_bucket = os.environ.get("SUPABASE_BUCKET", "uploads")
 
 # Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
@@ -357,9 +368,20 @@ def add_product():
     
     if image_file and image_file.filename != '':
         filename = secure_filename(image_file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        image_file.save(file_path)
-        image_path = f"static/uploads/{filename}"
+        if supabase_client:
+            ext = os.path.splitext(filename)[1]
+            unique_filename = f"{uuid.uuid4()}{ext}"
+            file_bytes = image_file.read()
+            supabase_client.storage.from_(supabase_bucket).upload(
+                unique_filename,
+                file_bytes,
+                {"content-type": image_file.content_type}
+            )
+            image_path = supabase_client.storage.from_(supabase_bucket).get_public_url(unique_filename)
+        else:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            image_file.save(file_path)
+            image_path = f"static/uploads/{filename}"
     elif image_url:
         image_path = image_url
         
@@ -385,9 +407,20 @@ def edit_product(id):
     
     if image_file and image_file.filename != '':
         filename = secure_filename(image_file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        image_file.save(file_path)
-        product.image_url = f"static/uploads/{filename}"
+        if supabase_client:
+            ext = os.path.splitext(filename)[1]
+            unique_filename = f"{uuid.uuid4()}{ext}"
+            file_bytes = image_file.read()
+            supabase_client.storage.from_(supabase_bucket).upload(
+                unique_filename,
+                file_bytes,
+                {"content-type": image_file.content_type}
+            )
+            product.image_url = supabase_client.storage.from_(supabase_bucket).get_public_url(unique_filename)
+        else:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            image_file.save(file_path)
+            product.image_url = f"static/uploads/{filename}"
     elif image_url:
         product.image_url = image_url
         
