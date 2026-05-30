@@ -22,3 +22,15 @@ The application utilizes SQLite by default. Ensure that `pooja_store.db` is read
 cd flask_app
 python app.py
 ```
+
+## Supabase Storage
+
+To upload product images to Supabase instead of the local filesystem, add the following variables to your `.env` file:
+
+```env
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_KEY=your_supabase_api_key
+SUPABASE_BUCKET=uploads
+```
+
+Ensure the specified bucket (`uploads` by default) exists in your Supabase storage and is public.
