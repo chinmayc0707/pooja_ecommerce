@@ -37,7 +37,7 @@ class RAGResponse(BaseModel):
             "List of product IDs (integers) that you explicitly recommended or "
             "mentioned by name in your answer. "
             "ONLY include IDs of products from the provided context that you "
-            "actually referenced. Leave empty if no products matched the question."
+            "actually referenced. Leave empty if no products matched the question. When mentioning products use tables for better UX"
         )
     )
 
