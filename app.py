@@ -46,15 +46,14 @@ SUPABASE_STORAGE_BUCKET = (
     or 'product-images'
 )
 SUPABASE_ACCOUNTS_TABLE = os.environ.get('SUPABASE_ACCOUNTS_TABLE', 'accounts')
+ACCOUNT_STORE = os.environ.get('ACCOUNT_STORE', 'supabase').strip().lower()
 PASSWORD_HASH_METHOD = 'pbkdf2:sha256'
 
 # Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['ACCOUNT_STORE'] = ACCOUNT_STORE
 db = SQLAlchemy(app)
-
-with app.app_context():
-    db.create_all()
 
 # --- Models ---
 class User(db.Model):
@@ -97,14 +96,19 @@ class SupabaseSetupError(SupabaseError):
 
 
 _supabase_bucket_checked = False
+_database_initialized = False
 
 
 def _supabase_configured():
     return bool(SUPABASE_URL and SUPABASE_KEY)
 
 
+def _use_sqlalchemy_accounts():
+    return app.config.get('TESTING') or app.config.get('ACCOUNT_STORE') in {'sqlite', 'sqlalchemy', 'local'}
+
+
 def _use_supabase_accounts():
-    return _supabase_configured() and not app.config.get('TESTING')
+    return not _use_sqlalchemy_accounts()
 
 
 def _supabase_headers(json_body=True, extra_headers=None):
@@ -258,39 +262,37 @@ def _update_supabase_account(user_id, username=None, password=None, is_admin=Non
 def _get_account_by_username(username):
     if not username:
         return None
-    if _use_supabase_accounts():
-        return _get_supabase_account_by_username(username)
-    return User.query.filter_by(username=username).first()
+    if _use_sqlalchemy_accounts():
+        return User.query.filter_by(username=username).first()
+    return _get_supabase_account_by_username(username)
 
 
 def _get_account_by_id(user_id):
     if not user_id:
         return None
-    if _use_supabase_accounts():
-        return _get_supabase_account_by_id(user_id)
-    return db.session.get(User, user_id)
+    if _use_sqlalchemy_accounts():
+        return db.session.get(User, user_id)
+    return _get_supabase_account_by_id(user_id)
 
 
 def _create_account(username, password, is_admin=False):
-    if _use_supabase_accounts():
-        return _create_supabase_account(username, password, is_admin)
-
-    new_user = User(username=username, password=_hash_password(password), is_admin=bool(is_admin))
-    db.session.add(new_user)
-    db.session.commit()
-    return new_user
+    if _use_sqlalchemy_accounts():
+        new_user = User(username=username, password=_hash_password(password), is_admin=bool(is_admin))
+        db.session.add(new_user)
+        db.session.commit()
+        return new_user
+    return _create_supabase_account(username, password, is_admin)
 
 
 def _update_account_credentials(user, username=None, password=None):
-    if _use_supabase_accounts():
-        return _update_supabase_account(user.id, username=username, password=password)
-
-    if username is not None:
-        user.username = username
-    if password is not None:
-        user.password = _hash_password(password)
-    db.session.commit()
-    return user
+    if _use_sqlalchemy_accounts():
+        if username is not None:
+            user.username = username
+        if password is not None:
+            user.password = _hash_password(password)
+        db.session.commit()
+        return user
+    return _update_supabase_account(user.id, username=username, password=password)
 
 
 def _authenticate_account(username, password):
@@ -306,20 +308,18 @@ def _authenticate_account(username, password):
 def _ensure_admin_account():
     admin = _get_account_by_username('admin')
     if admin:
-        if _use_supabase_accounts():
-            if not admin.is_admin:
-                _update_supabase_account(admin.id, is_admin=True)
-        else:
+        if _use_sqlalchemy_accounts():
             admin.is_admin = True
             if not _looks_like_password_hash(admin.password):
                 admin.password = _hash_password(admin.password)
             db.session.commit()
+        elif not admin.is_admin:
+            _update_supabase_account(admin.id, is_admin=True)
         return
 
-    if _use_supabase_accounts():
-        _create_account('admin', 'admin', is_admin=True)
-    elif not User.query.filter_by(is_admin=True).first():
-        _create_account('admin', 'admin', is_admin=True)
+    if _use_sqlalchemy_accounts() and User.query.filter_by(is_admin=True).first():
+        return
+    _create_account('admin', 'admin', is_admin=True)
 
 
 def _ensure_supabase_bucket():
@@ -441,6 +441,7 @@ def _ensure_user_schema():
 
 
 def init_db():
+    global _database_initialized
     with app.app_context():
         os.makedirs(UPLOAD_FOLDER, exist_ok=True)
         db.create_all()
@@ -464,6 +465,13 @@ def init_db():
             db.session.add_all(starter_products)
         _refresh_starter_product_images()
         db.session.commit()
+        _database_initialized = True
+
+
+@app.before_request
+def _ensure_database_initialized():
+    if not _database_initialized:
+        init_db()
 
 def get_current_user():
     if hasattr(g, '_current_user'):

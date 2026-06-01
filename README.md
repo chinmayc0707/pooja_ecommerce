@@ -15,9 +15,11 @@ This directory contains the core application logic, database models, and routes 
 
 ## Database Configuration
 
-Products and settings still use the local SQLite database. Login/register/account credential records use the Supabase `accounts` table when `SUPABASE_URL` and `SUPABASE_KEY` are set in `.env`.
+Products and settings still use the local SQLite database. On hosted WSGI servers such as Render, the app initializes those SQLite tables before the first request. Login/register/account credential records use the Supabase `accounts` table by default, so missing Supabase credentials will fail account reads/writes instead of silently saving credentials to SQLite.
 
 Before running with Supabase logins, execute `supabase_schema.sql` in the Supabase SQL editor. Use a server-side key that is allowed to read and write the `accounts` table; do not expose that key in browser code.
+
+For local-only testing, set `ACCOUNT_STORE=local` or run with Flask `TESTING=True` to use the SQLite `user` table instead.
 
 Admin panel image uploads are written to the Supabase Storage bucket named by `SUPABASE_STORAGE_BUCKET` or `SUPABASE_BUCKET`. If neither is set, the app uses `product-images`. The app will try to create that bucket as public the first time an image is uploaded.
 

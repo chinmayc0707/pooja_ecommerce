@@ -155,7 +155,7 @@ def test_register_uses_supabase_account_store_when_enabled(client, monkeypatch):
         created["is_admin"] = is_admin
         return app_module.AccountUser(id=20, username=username, is_admin=is_admin)
 
-    monkeypatch.setattr(app_module, "_use_supabase_accounts", lambda: True)
+    monkeypatch.setattr(app_module, "_use_sqlalchemy_accounts", lambda: False)
     monkeypatch.setattr(app_module, "_get_supabase_account_by_username", lambda username: None)
     monkeypatch.setattr(app_module, "_create_supabase_account", fake_create)
 
@@ -177,7 +177,7 @@ def test_register_uses_supabase_account_store_when_enabled(client, monkeypatch):
 def test_login_reads_supabase_account_store_when_enabled(client, monkeypatch):
     password_hash = app_module._hash_password("secret")
 
-    monkeypatch.setattr(app_module, "_use_supabase_accounts", lambda: True)
+    monkeypatch.setattr(app_module, "_use_sqlalchemy_accounts", lambda: False)
     monkeypatch.setattr(
         app_module,
         "_get_supabase_account_by_username",
@@ -194,3 +194,31 @@ def test_login_reads_supabase_account_store_when_enabled(client, monkeypatch):
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/")
     assert "auth_token=" in response.headers["Set-Cookie"]
+
+
+def test_supabase_account_store_does_not_fallback_to_sqlalchemy(monkeypatch):
+    monkeypatch.setitem(app.config, "TESTING", False)
+    monkeypatch.setitem(app.config, "ACCOUNT_STORE", "supabase")
+    monkeypatch.setattr(app_module, "SUPABASE_URL", "")
+    monkeypatch.setattr(app_module, "SUPABASE_KEY", "")
+
+    with pytest.raises(app_module.SupabaseError, match="Supabase is not configured"):
+        app_module._create_account("no_fallback", "secret")
+
+
+def test_first_request_initializes_database_for_wsgi_import(tmp_path):
+    app.config.update(
+        TESTING=True,
+        SQLALCHEMY_DATABASE_URI=f"sqlite:///{tmp_path / 'render.db'}",
+    )
+    app_module._database_initialized = False
+
+    with app.app_context():
+        db.session.remove()
+        db.drop_all()
+
+    response = app.test_client().get("/")
+
+    assert response.status_code == 200
+    with app.app_context():
+        assert Product.query.count() > 0
