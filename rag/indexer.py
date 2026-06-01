@@ -1,7 +1,7 @@
 """
 rag/indexer.py
 ──────────────
-Indexes all products from the SQLite database into Pinecone.
+Indexes all products from the application product store into Pinecone.
 
 Each product becomes one vector with rich text content for semantic search,
 and metadata (product_id, name, price, category, url) returned as citations.
@@ -84,7 +84,7 @@ def _get_or_create_index(pc: "Pinecone", index_name: str):
 
 
 def _product_to_document(product) -> Document:
-    """Convert a Product ORM object into a LangChain Document."""
+    """Convert a product record into a LangChain Document."""
     # Rich text for semantic similarity search
     content = (
         f"Product: {product.name}\n"
@@ -103,7 +103,7 @@ def _product_to_document(product) -> Document:
     return Document(page_content=content, metadata=metadata)
 
 
-def index_all_products(app=None, product_model=None):
+def index_all_products(app=None, product_model=None, products=None):
     """
     Index all products into Pinecone.
 
@@ -111,10 +111,8 @@ def index_all_products(app=None, product_model=None):
         app: Flask app instance (required when called from within the app context).
              If None, creates its own app context.
         product_model: Product SQLAlchemy model bound to the provided app.
+        products: Optional iterable of already-loaded product records.
     """
-    if app is not None and product_model is None:
-        raise RuntimeError("product_model is required when passing a Flask app")
-
     api_key = os.environ.get("PINECONE_API_KEY")
     index_name = os.environ.get("PINECONE_INDEX_NAME", "pooja-store")
 
@@ -126,20 +124,22 @@ def index_all_products(app=None, product_model=None):
 
     embeddings = _get_embeddings()
 
-    # Need Flask app context to query the DB
-    if app is not None:
+    if products is not None:
+        return _do_index(index, index_name, embeddings, list(products))
+
+    # Need Flask app context to query the database.
+    if app is not None and product_model is not None:
         with app.app_context():
-            return _do_index(index, index_name, embeddings, product_model)
+            return _do_index(index, index_name, embeddings, product_model.query.all())
     else:
         # Running as standalone script — create the app ourselves
-        from app import app as flask_app, Product, init_db
+        from app import app as flask_app, init_db, _get_all_products
         init_db()
         with flask_app.app_context():
-            return _do_index(index, index_name, embeddings, Product)
+            return _do_index(index, index_name, embeddings, _get_all_products())
 
 
-def _do_index(index, index_name, embeddings, product_model):
-    products = product_model.query.all()
+def _do_index(index, index_name, embeddings, products):
     if not products:
         print("[indexer] No products found in database.")
         return 0

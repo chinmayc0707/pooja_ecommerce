@@ -206,6 +206,51 @@ def test_supabase_account_store_does_not_fallback_to_sqlalchemy(monkeypatch):
         app_module._create_account("no_fallback", "secret")
 
 
+def test_product_and_setting_helpers_use_supabase_store(monkeypatch):
+    calls = []
+
+    def fake_supabase_request(method, path, payload=None, query=None, **kwargs):
+        calls.append({"method": method, "path": path, "payload": payload, "query": query})
+        if path.endswith("/products") and method == "POST":
+            return [{"id": 50, **payload}]
+        if path.endswith("/products") and method == "GET":
+            return [{
+                "id": 50,
+                "name": "Supabase Product",
+                "category": "Remote",
+                "price": 25.0,
+                "stock": 5,
+                "description": "Stored remotely",
+                "image_url": "https://example.com/item.png",
+            }]
+        if path.endswith("/settings") and method == "GET":
+            return []
+        if path.endswith("/settings") and method == "POST":
+            return [{"id": 7, **payload}]
+        raise AssertionError(f"Unexpected request: {method} {path}")
+
+    monkeypatch.setitem(app.config, "TESTING", False)
+    monkeypatch.setitem(app.config, "DATA_STORE", "supabase")
+    monkeypatch.setattr(app_module, "_supabase_request", fake_supabase_request)
+
+    product = app_module._create_product_record(
+        name="Supabase Product",
+        category="Remote",
+        price=25.0,
+        stock=5,
+        description="Stored remotely",
+        image_url="https://example.com/item.png",
+    )
+    setting = app_module._set_setting_value("upi_id", "merchant@upi")
+    products = app_module._get_all_products()
+
+    assert isinstance(product, app_module.ProductRecord)
+    assert isinstance(setting, app_module.SettingRecord)
+    assert products[0].name == "Supabase Product"
+    assert ("POST", "/rest/v1/products") in [(call["method"], call["path"]) for call in calls]
+    assert ("POST", "/rest/v1/settings") in [(call["method"], call["path"]) for call in calls]
+
+
 def test_first_request_initializes_database_for_wsgi_import(tmp_path):
     app.config.update(
         TESTING=True,

@@ -20,7 +20,6 @@ load_dotenv()
 # Define absolute paths
 base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, 'templates')
-db_path = os.path.join(base_dir, 'pooja_store.db')
 UPLOAD_FOLDER = os.path.join(base_dir, 'static', 'uploads')
 PRODUCT_IMAGE_PLACEHOLDER = 'product-placeholder.svg'
 
@@ -46,13 +45,18 @@ SUPABASE_STORAGE_BUCKET = (
     or 'product-images'
 )
 SUPABASE_ACCOUNTS_TABLE = os.environ.get('SUPABASE_ACCOUNTS_TABLE', 'accounts')
+SUPABASE_PRODUCTS_TABLE = os.environ.get('SUPABASE_PRODUCTS_TABLE', 'products')
+SUPABASE_SETTINGS_TABLE = os.environ.get('SUPABASE_SETTINGS_TABLE', 'settings')
 ACCOUNT_STORE = os.environ.get('ACCOUNT_STORE', 'supabase').strip().lower()
+DATA_STORE = os.environ.get('DATA_STORE', 'supabase').strip().lower()
+LOCAL_STORE_NAMES = {'sqlite', 'sqlalchemy', 'local'}
 PASSWORD_HASH_METHOD = 'pbkdf2:sha256'
 
 # Database Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI') or 'sqlite:///:memory:'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['ACCOUNT_STORE'] = ACCOUNT_STORE
+app.config['DATA_STORE'] = DATA_STORE
 db = SQLAlchemy(app)
 
 # --- Models ---
@@ -85,6 +89,24 @@ class AccountUser:
     is_admin: bool = False
 
 
+@dataclass
+class ProductRecord:
+    id: object
+    name: str
+    category: str
+    price: float
+    stock: int
+    description: str = ''
+    image_url: str = ''
+
+
+@dataclass
+class SettingRecord:
+    id: object
+    key: str
+    value: str = ''
+
+
 class SupabaseError(RuntimeError):
     def __init__(self, message, status=None):
         super().__init__(message)
@@ -104,11 +126,15 @@ def _supabase_configured():
 
 
 def _use_sqlalchemy_accounts():
-    return app.config.get('TESTING') or app.config.get('ACCOUNT_STORE') in {'sqlite', 'sqlalchemy', 'local'}
+    return app.config.get('TESTING') or app.config.get('ACCOUNT_STORE') in LOCAL_STORE_NAMES
 
 
 def _use_supabase_accounts():
     return not _use_sqlalchemy_accounts()
+
+
+def _use_sqlalchemy_data():
+    return app.config.get('TESTING') or app.config.get('DATA_STORE') in LOCAL_STORE_NAMES
 
 
 def _supabase_headers(json_body=True, extra_headers=None):
@@ -152,9 +178,11 @@ def _supabase_request(method, path, payload=None, query=None, data=None, headers
             return json.loads(response_body.decode('utf-8'))
     except error.HTTPError as exc:
         details = exc.read().decode('utf-8', errors='replace')
-        if exc.code == 404 and 'PGRST205' in details and SUPABASE_ACCOUNTS_TABLE in details:
+        known_tables = [SUPABASE_ACCOUNTS_TABLE, SUPABASE_PRODUCTS_TABLE, SUPABASE_SETTINGS_TABLE]
+        missing_table = next((table for table in known_tables if table in details), None)
+        if exc.code == 404 and 'PGRST205' in details and missing_table:
             raise SupabaseSetupError(
-                "Supabase account table is missing. Run supabase_schema.sql in the Supabase SQL editor, "
+                f"Supabase table '{missing_table}' is missing. Run supabase_schema.sql in the Supabase SQL editor, "
                 "then restart the Flask app.",
                 status=exc.code,
             ) from exc
@@ -163,8 +191,20 @@ def _supabase_request(method, path, payload=None, query=None, data=None, headers
         raise SupabaseError(f'Unable to reach Supabase: {exc.reason}') from exc
 
 
+def _table_path(table_name):
+    return f'/rest/v1/{parse.quote(table_name, safe="")}'
+
+
 def _accounts_path():
-    return f'/rest/v1/{parse.quote(SUPABASE_ACCOUNTS_TABLE, safe="")}'
+    return _table_path(SUPABASE_ACCOUNTS_TABLE)
+
+
+def _products_path():
+    return _table_path(SUPABASE_PRODUCTS_TABLE)
+
+
+def _settings_path():
+    return _table_path(SUPABASE_SETTINGS_TABLE)
 
 
 def _hash_password(password):
@@ -322,6 +362,264 @@ def _ensure_admin_account():
     _create_account('admin', 'admin', is_admin=True)
 
 
+def _product_select_columns():
+    return 'id,name,category,price,stock,description,image_url'
+
+
+def _product_from_supabase_row(row):
+    if not row:
+        return None
+    return ProductRecord(
+        id=row.get('id'),
+        name=row.get('name') or '',
+        category=row.get('category') or '',
+        price=float(row.get('price') or 0),
+        stock=int(row.get('stock') or 0),
+        description=row.get('description') or '',
+        image_url=row.get('image_url') or '',
+    )
+
+
+def _setting_from_supabase_row(row):
+    if not row:
+        return None
+    return SettingRecord(
+        id=row.get('id'),
+        key=row.get('key') or '',
+        value=row.get('value') or '',
+    )
+
+
+def _get_all_products():
+    if _use_sqlalchemy_data():
+        return Product.query.order_by(Product.id).all()
+
+    rows = _supabase_request(
+        'GET',
+        _products_path(),
+        query={
+            'select': _product_select_columns(),
+            'order': 'id.asc',
+        },
+        expected=(200,),
+    ) or []
+    return [_product_from_supabase_row(row) for row in rows]
+
+
+def _get_product_by_id(product_id):
+    if not product_id:
+        return None
+    if _use_sqlalchemy_data():
+        return db.session.get(Product, product_id)
+
+    rows = _supabase_request(
+        'GET',
+        _products_path(),
+        query={
+            'select': _product_select_columns(),
+            'id': f'eq.{product_id}',
+            'limit': '1',
+        },
+        expected=(200,),
+    ) or []
+    return _product_from_supabase_row(rows[0]) if rows else None
+
+
+def _get_product_or_404(product_id):
+    product = _get_product_by_id(product_id)
+    if not product:
+        abort(404)
+    return product
+
+
+def _get_products_by_ids(product_ids):
+    unique_ids = []
+    for raw_id in product_ids:
+        try:
+            product_id = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        if product_id not in unique_ids:
+            unique_ids.append(product_id)
+
+    if not unique_ids:
+        return []
+
+    if _use_sqlalchemy_data():
+        return Product.query.filter(Product.id.in_(unique_ids)).all()
+
+    rows = _supabase_request(
+        'GET',
+        _products_path(),
+        query={
+            'select': _product_select_columns(),
+            'id': f'in.({",".join(str(product_id) for product_id in unique_ids)})',
+        },
+        expected=(200,),
+    ) or []
+    return [_product_from_supabase_row(row) for row in rows]
+
+
+def _create_product_record(name, category, price, stock, description=None, image_url=None):
+    payload = {
+        'name': name,
+        'category': category,
+        'price': float(price),
+        'stock': int(stock),
+        'description': description,
+        'image_url': image_url,
+    }
+
+    if _use_sqlalchemy_data():
+        product = Product(**payload)
+        db.session.add(product)
+        db.session.commit()
+        return product
+
+    rows = _supabase_request(
+        'POST',
+        _products_path(),
+        payload=payload,
+        headers=_supabase_headers(extra_headers={'Prefer': 'return=representation'}),
+        expected=(200, 201),
+    ) or []
+    return _product_from_supabase_row(rows[0]) if rows else None
+
+
+def _update_product_record(product_id, **fields):
+    payload = {}
+    for key in ('name', 'category', 'price', 'stock', 'description', 'image_url'):
+        if key in fields:
+            payload[key] = fields[key]
+    if 'price' in payload:
+        payload['price'] = float(payload['price'])
+    if 'stock' in payload:
+        payload['stock'] = int(payload['stock'])
+
+    if _use_sqlalchemy_data():
+        product = _get_product_or_404(product_id)
+        for key, value in payload.items():
+            setattr(product, key, value)
+        db.session.commit()
+        return product
+
+    if not payload:
+        return _get_product_by_id(product_id)
+
+    rows = _supabase_request(
+        'PATCH',
+        _products_path(),
+        payload=payload,
+        query={'id': f'eq.{product_id}'},
+        headers=_supabase_headers(extra_headers={'Prefer': 'return=representation'}),
+        expected=(200, 204),
+    ) or []
+    return _product_from_supabase_row(rows[0]) if rows else _get_product_by_id(product_id)
+
+
+def _delete_product_record(product_id):
+    product = _get_product_or_404(product_id)
+
+    if _use_sqlalchemy_data():
+        db.session.delete(product)
+        db.session.commit()
+        return product
+
+    _supabase_request(
+        'DELETE',
+        _products_path(),
+        query={'id': f'eq.{product_id}'},
+        expected=(200, 204),
+    )
+    return product
+
+
+def _get_product_categories(products=None):
+    products = products if products is not None else _get_all_products()
+    return sorted({product.category for product in products if product.category})
+
+
+def _get_setting_record(key):
+    if _use_sqlalchemy_data():
+        return Setting.query.filter_by(key=key).first()
+
+    rows = _supabase_request(
+        'GET',
+        _settings_path(),
+        query={
+            'select': 'id,key,value',
+            'key': f'eq.{key}',
+            'limit': '1',
+        },
+        expected=(200,),
+    ) or []
+    return _setting_from_supabase_row(rows[0]) if rows else None
+
+
+def _get_setting_value(key, default=''):
+    setting = _get_setting_record(key)
+    return setting.value if setting else default
+
+
+def _set_setting_value(key, value):
+    value = value or ''
+    if _use_sqlalchemy_data():
+        setting = Setting.query.filter_by(key=key).first()
+        if not setting:
+            setting = Setting(key=key, value=value)
+            db.session.add(setting)
+        else:
+            setting.value = value
+        db.session.commit()
+        return setting
+
+    existing = _get_setting_record(key)
+    if existing:
+        rows = _supabase_request(
+            'PATCH',
+            _settings_path(),
+            payload={'value': value},
+            query={'key': f'eq.{key}'},
+            headers=_supabase_headers(extra_headers={'Prefer': 'return=representation'}),
+            expected=(200, 204),
+        ) or []
+    else:
+        rows = _supabase_request(
+            'POST',
+            _settings_path(),
+            payload={'key': key, 'value': value},
+            headers=_supabase_headers(extra_headers={'Prefer': 'return=representation'}),
+            expected=(200, 201),
+        ) or []
+    return _setting_from_supabase_row(rows[0]) if rows else _get_setting_record(key)
+
+
+def _ensure_setting_value(key, default=''):
+    if not _get_setting_record(key):
+        _set_setting_value(key, default)
+
+
+def _starter_product_payloads():
+    return [
+        {'name': "Pure Brass Diya", 'category': "Brass Items", 'price': 499.0, 'stock': 45, 'description': "Hand-polished traditional brass lamps.", 'image_url': _starter_product_image_url("Pure Brass Diya", "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000")},
+        {'name': "Organic Agarbatti", 'category': "Incense", 'price': 199.0, 'stock': 120, 'description': "Naturally scented incense sticks.", 'image_url': _starter_product_image_url("Organic Agarbatti", "https://images.unsplash.com/photo-1602928321679-56077325677c?auto=format&fit=crop&q=80&w=1000")},
+        {'name': "Puja Thali Set", 'category': "Brass Items", 'price': 1299.0, 'stock': 12, 'description': "All-in-one elegant brass thali set.", 'image_url': _starter_product_image_url("Puja Thali Set", "https://images.unsplash.com/photo-1561489573-316527703983?auto=format&fit=crop&q=80&w=1000")},
+        {'name': "Sandalwood Powder", 'category': "Fragrance", 'price': 250.0, 'stock': 60, 'description': "Premium grade naturally sourced sandalwood.", 'image_url': _starter_product_image_url("Sandalwood Powder", "https://images.unsplash.com/photo-159543B95956D-C9D7A6E1A")},
+        {'name': "Copper Kalash", 'category': "Brass Items", 'price': 750.0, 'stock': 20, 'description': "Pure copper vessel for ritual offerings.", 'image_url': _starter_product_image_url("Copper Kalash", "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000")},
+        {'name': "Premium Camphor", 'category': "Fragrance", 'price': 150.0, 'stock': 100, 'description': "Pure smokeless camphor crystals.", 'image_url': _starter_product_image_url("Premium Camphor", "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000")},
+    ]
+
+
+def _ensure_starter_products():
+    if _get_all_products():
+        _refresh_starter_product_images()
+        return
+
+    for payload in _starter_product_payloads():
+        _create_product_record(**payload)
+    _refresh_starter_product_images()
+
+
 def _ensure_supabase_bucket():
     global _supabase_bucket_checked
     if _supabase_bucket_checked:
@@ -412,12 +710,10 @@ def _admin_redirect(message=None, error=None):
 
 
 def _render_admin(error=None, success=None, status=200):
-    products = Product.query.all()
-    categories = db.session.query(Product.category).distinct().all()
-    category_list = [c[0] for c in categories]
+    products = _get_all_products()
+    category_list = _get_product_categories(products)
     user = get_current_user()
-    upi_setting = Setting.query.filter_by(key='upi_id').first()
-    upi_id = upi_setting.value if upi_setting else ''
+    upi_id = _get_setting_value('upi_id')
     error = error or request.args.get('error')
     success = success or request.args.get('success')
     return render_template(
@@ -444,27 +740,13 @@ def init_db():
     global _database_initialized
     with app.app_context():
         os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-        db.create_all()
-        _ensure_user_schema()
+        if _use_sqlalchemy_accounts() or _use_sqlalchemy_data():
+            db.create_all()
+        if _use_sqlalchemy_accounts():
+            _ensure_user_schema()
         _ensure_admin_account()
-        
-        if not Setting.query.filter_by(key='upi_id').first():
-            payment_setting = Setting(key='upi_id', value='')
-            db.session.add(payment_setting)
-            db.session.commit()
-
-        if not Product.query.first():
-            starter_products = [
-                Product(name="Pure Brass Diya", category="Brass Items", price=499.0, stock=45, description="Hand-polished traditional brass lamps.", image_url=_starter_product_image_url("Pure Brass Diya", "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000")),
-                Product(name="Organic Agarbatti", category="Incense", price=199.0, stock=120, description="Naturally scented incense sticks.", image_url=_starter_product_image_url("Organic Agarbatti", "https://images.unsplash.com/photo-1602928321679-56077325677c?auto=format&fit=crop&q=80&w=1000")),
-                Product(name="Puja Thali Set", category="Brass Items", price=1299.0, stock=12, description="All-in-one elegant brass thali set.", image_url=_starter_product_image_url("Puja Thali Set", "https://images.unsplash.com/photo-1561489573-316527703983?auto=format&fit=crop&q=80&w=1000")),
-                Product(name="Sandalwood Powder", category="Fragrance", price=250.0, stock=60, description="Premium grade naturally sourced sandalwood.", image_url=_starter_product_image_url("Sandalwood Powder", "https://images.unsplash.com/photo-159543B95956D-C9D7A6E1A")),
-                Product(name="Copper Kalash", category="Brass Items", price=750.0, stock=20, description="Pure copper vessel for ritual offerings.", image_url=_starter_product_image_url("Copper Kalash", "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000")),
-                Product(name="Premium Camphor", category="Fragrance", price=150.0, stock=100, description="Pure smokeless camphor crystals.", image_url=_starter_product_image_url("Premium Camphor", "https://images.unsplash.com/photo-1609505848667-755547521471?auto=format&fit=crop&q=80&w=1000")),
-            ]
-            db.session.add_all(starter_products)
-        _refresh_starter_product_images()
-        db.session.commit()
+        _ensure_setting_value('upi_id', '')
+        _ensure_starter_products()
         _database_initialized = True
 
 
@@ -540,12 +822,14 @@ def _starter_product_image_url(product_name, fallback_url=None):
 
 
 def _refresh_starter_product_images():
-    starter_names = list(STARTER_PRODUCT_IMAGE_FILES.keys())
-    for product in Product.query.filter(Product.name.in_(starter_names)).all():
+    starter_names = set(STARTER_PRODUCT_IMAGE_FILES.keys())
+    for product in _get_all_products():
+        if product.name not in starter_names:
+            continue
         current_image = (product.image_url or '').strip()
         local_image = _starter_product_image_url(product.name)
         if local_image and (not current_image or current_image.startswith('https://images.unsplash.com/')):
-            product.image_url = local_image
+            _update_product_record(product.id, image_url=local_image)
 
 
 def _catalog_image_url(image_url):
@@ -565,7 +849,7 @@ def _catalog_image_url(image_url):
 
 @app.route('/')
 def index():
-    all_products = Product.query.all()
+    all_products = _get_all_products()
     categorized_products = {}
     for product in all_products:
         if product.category not in categorized_products:
@@ -609,7 +893,7 @@ def index():
 
 @app.route('/product/<int:product_id>')
 def product_detail(product_id):
-    product = Product.query.get_or_404(product_id)
+    product = _get_product_or_404(product_id)
     return render_template('product_detail.html', product=product)
 
 @app.route('/add_to_cart/<int:product_id>', methods=['POST'])
@@ -629,7 +913,7 @@ def api_cart_count():
 @app.route('/cart')
 def view_cart():
     cart_ids = session.get('cart', [])
-    products = Product.query.filter(Product.id.in_(cart_ids)).all()
+    products = _get_products_by_ids(cart_ids)
     
     cart_items = []
     for p in products:
@@ -641,8 +925,7 @@ def view_cart():
         })
     
     total = sum(item['subtotal'] for item in cart_items)
-    upi_setting = Setting.query.filter_by(key='upi_id').first()
-    upi_id = upi_setting.value if upi_setting else ''
+    upi_id = _get_setting_value('upi_id')
     return render_template('cart.html', items=cart_items, total=total, upi_id=upi_id)
 
 @app.route('/remove_from_cart/<int:product_id>')
@@ -750,9 +1033,14 @@ def add_product():
     elif image_url:
         image_path = image_url
         
-    new_product = Product(name=name, category=category, price=price, stock=stock, description=description, image_url=image_path)
-    db.session.add(new_product)
-    db.session.commit()
+    new_product = _create_product_record(
+        name=name,
+        category=category,
+        price=price,
+        stock=stock,
+        description=description,
+        image_url=image_path,
+    )
     # Sync new product to Pinecone
     _sync_product_to_pinecone(new_product)
     return _admin_redirect("Product saved successfully.")
@@ -760,19 +1048,15 @@ def add_product():
 @app.route('/edit-product/<int:id>', methods=['POST'])
 @admin_required
 def edit_product(id):
-    product = Product.query.get_or_404(id)
-    product.name = request.form.get('name')
-    product.category = request.form.get('category')
-    product.price = float(request.form.get('price'))
-    product.stock = int(request.form.get('stock'))
-    product.description = request.form.get('description')
+    product = _get_product_or_404(id)
+    image_path = product.image_url
     
     image_url = request.form.get('image_url')
     image_file = request.files.get('image_file')
     
     if image_file and image_file.filename != '':
         try:
-            product.image_url = _save_product_image_upload(image_file)
+            image_path = _save_product_image_upload(image_file)
         except SupabaseError as exc:
             app.logger.error(f'Supabase image upload failed: {exc}')
             return _render_admin(
@@ -780,9 +1064,17 @@ def edit_product(id):
                 status=500,
             )
     elif image_url:
-        product.image_url = image_url
-        
-    db.session.commit()
+        image_path = image_url
+
+    product = _update_product_record(
+        id,
+        name=request.form.get('name'),
+        category=request.form.get('category'),
+        price=float(request.form.get('price')),
+        stock=int(request.form.get('stock')),
+        description=request.form.get('description'),
+        image_url=image_path,
+    )
     # Sync updated product to Pinecone
     _sync_product_to_pinecone(product)
     return _admin_redirect("Product updated successfully.")
@@ -790,10 +1082,8 @@ def edit_product(id):
 @app.route('/delete-product/<int:id>', methods=['POST'])
 @admin_required
 def delete_product(id):
-    product = Product.query.get_or_404(id)
+    product = _delete_product_record(id)
     product_id = product.id
-    db.session.delete(product)
-    db.session.commit()
     # Remove deleted product from Pinecone
     _delete_product_from_pinecone(product_id)
     return redirect(url_for('admin'))
@@ -803,13 +1093,7 @@ def delete_product(id):
 def update_upi_id():
     new_upi_id = request.form.get('upi_id')
     if new_upi_id is not None:
-        setting = Setting.query.filter_by(key='upi_id').first()
-        if not setting:
-            setting = Setting(key='upi_id', value=new_upi_id)
-            db.session.add(setting)
-        else:
-            setting.value = new_upi_id
-        db.session.commit()
+        _set_setting_value('upi_id', new_upi_id)
     return redirect(url_for('admin'))
 
 @app.route('/change-password', methods=['POST'])
@@ -923,7 +1207,7 @@ def admin_reindex():
         return jsonify({'error': 'PINECONE_API_KEY not configured.'}), 503
     try:
         from rag.indexer import index_all_products
-        count = index_all_products(app, Product)
+        count = index_all_products(products=_get_all_products())
         return jsonify({'success': True, 'indexed': count})
     except Exception as e:
         app.logger.error(f'Reindex error: {e}')
