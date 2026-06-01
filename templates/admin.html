@@ -51,6 +51,7 @@
         .settings-section { background: var(--colors-cream); border: 1px solid var(--colors-beige-deep); padding: 32px; border-radius: var(--rounded-lg); margin-bottom: 48px; max-width: 600px; }
         .settings-section h3 { font-family: 'Playfair Display', serif; font-size: 24px; margin-bottom: 20px; }
         .error-msg { background: #fee2e2; color: #b91c1c; padding: 12px; border-radius: var(--rounded-md); font-size: 13px; margin-bottom: 24px; max-width: 600px; }
+        .success-msg { background: #dcfce7; color: #166534; padding: 12px; border-radius: var(--rounded-md); font-size: 13px; margin-bottom: 24px; max-width: 600px; }
         .settings-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .form-group { display: flex; flex-direction: column; gap: 8px; }
         .form-group label { font-size: 13px; font-weight: 500; color: var(--colors-slate); }
@@ -75,6 +76,7 @@
         .modal-form input, .modal-form textarea { padding: 10px; border: 1px solid var(--colors-beige-deep); border-radius: var(--rounded-md); font-family: 'Inter', sans-serif; }
         .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
         .btn-close { background: var(--colors-slate); color: white; padding: 10px 20px; border-radius: var(--rounded-md); border: none; cursor: pointer; }
+        .form-status { display: none; color: var(--colors-slate); font-size: 13px; margin-top: 10px; text-align: right; }
 
         .image-toggle { display: flex; gap: 12px; margin-bottom: 8px; }
         .toggle-option { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: var(--colors-slate); }
@@ -126,6 +128,9 @@
 
         {% if error %}
         <div class="error-msg">{{ error }}</div>
+        {% endif %}
+        {% if success %}
+        <div class="success-msg">{{ success }}</div>
         {% endif %}
 
         <div class="settings-section">
@@ -243,8 +248,9 @@
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn-close" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn-save">Save Product</button>
+                    <button type="submit" class="btn-save" id="productSaveBtn">Save Product</button>
                 </div>
+                <div id="productFormStatus" class="form-status">Uploading image and saving product...</div>
             </form>
         </div>
     </div>
@@ -255,12 +261,18 @@
         function toggleImageInput(type) {
             const urlInput = document.getElementById('prodImageUrl');
             const fileInput = document.getElementById('prodImageFile');
+            const urlRadio = document.querySelector('input[name="image_type"][value="url"]');
+            const fileRadio = document.querySelector('input[name="image_type"][value="file"]');
             if (type === 'url') {
                 urlInput.style.display = 'block';
                 fileInput.style.display = 'none';
+                urlRadio.checked = true;
+                fileInput.value = '';
             } else {
                 urlInput.style.display = 'none';
                 fileInput.style.display = 'block';
+                fileRadio.checked = true;
+                urlInput.value = '';
             }
         }
 
@@ -276,7 +288,9 @@
             document.getElementById('prodPrice').value = '';
             document.getElementById('prodStock').value = '';
             document.getElementById('prodImageUrl').value = '';
+            document.getElementById('prodImageFile').value = '';
             document.getElementById('prodDesc').value = '';
+            resetProductSaveState();
             toggleImageInput('url');
         }
 
@@ -292,6 +306,8 @@
             document.getElementById('prodPrice').value = price;
             document.getElementById('prodStock').value = stock;
             document.getElementById('prodDesc').value = desc;
+            document.getElementById('prodImageFile').value = '';
+            resetProductSaveState();
             
             if (img) {
                 document.getElementById('prodImageUrl').value = img;
@@ -304,7 +320,26 @@
 
         function closeModal() {
             document.getElementById('productModal').style.display = 'none';
+            resetProductSaveState();
         }
+
+        function resetProductSaveState() {
+            const saveBtn = document.getElementById('productSaveBtn');
+            const status = document.getElementById('productFormStatus');
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerText = 'Save Product';
+            }
+            if (status) status.style.display = 'none';
+        }
+
+        document.getElementById('productForm').addEventListener('submit', function () {
+            const saveBtn = document.getElementById('productSaveBtn');
+            const status = document.getElementById('productFormStatus');
+            saveBtn.disabled = true;
+            saveBtn.innerText = 'Saving...';
+            status.style.display = 'block';
+        });
 
         window.onclick = function(event) {
             const modal = document.getElementById('productModal');
