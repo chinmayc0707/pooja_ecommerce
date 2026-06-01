@@ -146,6 +146,101 @@ def test_admin_add_product_file_upload_stores_supabase_url(client, monkeypatch):
         assert product.image_url == "https://example.supabase.co/storage/v1/object/public/product-images/products/item.png"
 
 
+def test_admin_edit_product_file_upload_stores_supabase_url(client, monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "_save_product_image_upload",
+        lambda file_storage: "https://example.supabase.co/storage/v1/object/public/product-images/products/updated.png",
+    )
+
+    with app.app_context():
+        product_id = Product.query.first().id
+
+    login(client, "admin", "admin")
+    response = client.post(
+        f"/edit-product/{product_id}",
+        data={
+            "name": "Updated Image Product",
+            "category": "Uploads",
+            "price": "55.00",
+            "stock": "8",
+            "description": "Updated upload",
+            "image_file": (io.BytesIO(b"updated-image-bytes"), "updated.png"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert "success=Product+updated+successfully" in response.headers["Location"]
+
+    with app.app_context():
+        product = db.session.get(Product, product_id)
+        assert product.image_url == "https://example.supabase.co/storage/v1/object/public/product-images/products/updated.png"
+
+
+def test_admin_upload_failure_is_rendered_for_add_and_edit(client, monkeypatch):
+    def fail_upload(file_storage):
+        raise app_module.SupabaseError("storage rejected upload")
+
+    monkeypatch.setattr(app_module, "_save_product_image_upload", fail_upload)
+
+    with app.app_context():
+        product_id = Product.query.first().id
+
+    login(client, "admin", "admin")
+    add_response = client.post(
+        "/add-product",
+        data={
+            "name": "Rejected Image Product",
+            "category": "Uploads",
+            "price": "25.00",
+            "stock": "3",
+            "description": "Should not save",
+            "image_file": (io.BytesIO(b"bad-image"), "bad.png"),
+        },
+        content_type="multipart/form-data",
+    )
+    edit_response = client.post(
+        f"/edit-product/{product_id}",
+        data={
+            "name": "Rejected Edit",
+            "category": "Uploads",
+            "price": "25.00",
+            "stock": "3",
+            "description": "Should not update",
+            "image_file": (io.BytesIO(b"bad-image"), "bad.png"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert add_response.status_code == 500
+    assert edit_response.status_code == 500
+    assert b"Image upload failed: storage rejected upload" in add_response.data
+    assert b"Image upload failed: storage rejected upload" in edit_response.data
+
+
+def test_product_save_does_not_sync_pinecone_unless_enabled(monkeypatch):
+    called = {}
+
+    def fake_index(product):
+        called["product"] = product
+
+    monkeypatch.setattr(app_module, "AUTO_SYNC_PINECONE", False)
+    monkeypatch.setenv("PINECONE_API_KEY", "test-key")
+    monkeypatch.setattr("rag.indexer.index_single_product", fake_index)
+
+    app_module._sync_product_to_pinecone(app_module.ProductRecord(
+        id=1,
+        name="Test Product",
+        category="Test",
+        price=1.0,
+        stock=1,
+    ))
+
+    assert called == {}
+
+
 def test_register_uses_supabase_account_store_when_enabled(client, monkeypatch):
     created = {}
 

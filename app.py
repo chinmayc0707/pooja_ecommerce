@@ -13,7 +13,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash, generate_password_hash
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,6 +23,7 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(base_dir, 'templates')
 UPLOAD_FOLDER = os.path.join(base_dir, 'static', 'uploads')
 PRODUCT_IMAGE_PLACEHOLDER = 'product-placeholder.svg'
+MAX_IMAGE_UPLOAD_BYTES = int(os.environ.get('MAX_IMAGE_UPLOAD_MB', '8')) * 1024 * 1024
 
 STARTER_PRODUCT_IMAGE_FILES = {
     "Pure Brass Diya": "ChatGPT_Image_May_27_2026_01_18_55_PM.png",
@@ -37,6 +38,7 @@ app = Flask(__name__, template_folder=template_dir)
 app.secret_key = os.environ.get('SECRET_KEY', 'test-secret')
 JWT_SECRET = os.environ.get('JWT_SECRET', 'test-secret')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = MAX_IMAGE_UPLOAD_BYTES
 
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '').rstrip('/')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
@@ -51,6 +53,7 @@ SUPABASE_SETTINGS_TABLE = os.environ.get('SUPABASE_SETTINGS_TABLE', 'settings')
 ACCOUNT_STORE = os.environ.get('ACCOUNT_STORE', 'supabase').strip().lower()
 DATA_STORE = os.environ.get('DATA_STORE', 'supabase').strip().lower()
 LOCAL_STORE_NAMES = {'sqlite', 'sqlalchemy', 'local'}
+AUTO_SYNC_PINECONE = os.environ.get('AUTO_SYNC_PINECONE', '').strip().lower() in {'1', 'true', 'yes', 'on'}
 PASSWORD_HASH_METHOD = 'pbkdf2:sha256'
 
 # Database Configuration
@@ -693,10 +696,17 @@ def _upload_file_to_supabase_storage(image_file):
 
 
 def _save_product_image_upload(image_file):
+    if not image_file or not image_file.filename:
+        raise SupabaseError('No image file was selected.')
+    if image_file.mimetype and not image_file.mimetype.startswith('image/'):
+        raise SupabaseError('Uploaded file must be an image.')
+
     if _supabase_configured() and not app.config.get('TESTING'):
         return _upload_file_to_supabase_storage(image_file)
 
     filename = secure_filename(image_file.filename)
+    if not filename:
+        raise SupabaseError('Uploaded image filename is invalid.')
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     image_file.save(file_path)
     return f"static/uploads/{filename}"
@@ -729,6 +739,14 @@ def handle_chat_exception(exc):
         app.logger.exception('Unhandled chat request error')
         return _json_error('The AI assistant failed before it could answer. Check the server logs for details.', 500)
     raise exc
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_large_upload(exc):
+    if request.path in {'/add-product'} or request.path.startswith('/edit-product/'):
+        max_mb = MAX_IMAGE_UPLOAD_BYTES // (1024 * 1024)
+        return _render_admin(error=f"Image upload failed: file is larger than {max_mb} MB.", status=413)
+    return exc
 
 
 def _render_admin(error=None, success=None, status=200):
@@ -1046,8 +1064,8 @@ def add_product():
     if image_file and image_file.filename != '':
         try:
             image_path = _save_product_image_upload(image_file)
-        except SupabaseError as exc:
-            app.logger.error(f'Supabase image upload failed: {exc}')
+        except Exception as exc:
+            app.logger.exception('Product image upload failed')
             return _render_admin(
                 error=f"Image upload failed: {exc}",
                 status=500,
@@ -1079,8 +1097,8 @@ def edit_product(id):
     if image_file and image_file.filename != '':
         try:
             image_path = _save_product_image_upload(image_file)
-        except SupabaseError as exc:
-            app.logger.error(f'Supabase image upload failed: {exc}')
+        except Exception as exc:
+            app.logger.exception('Product image upload failed')
             return _render_admin(
                 error=f"Image upload failed: {exc}",
                 status=500,
@@ -1173,6 +1191,8 @@ def logout():
 # ─── RAG helper functions ─────────────────────────────────────────────────────
 def _sync_product_to_pinecone(product):
     """Upsert a single product vector. Silently skips if Pinecone not configured."""
+    if not AUTO_SYNC_PINECONE:
+        return
     if not os.environ.get('PINECONE_API_KEY'):
         return
     try:
@@ -1184,6 +1204,8 @@ def _sync_product_to_pinecone(product):
 
 def _delete_product_from_pinecone(product_id: int):
     """Delete a product vector. Silently skips if Pinecone not configured."""
+    if not AUTO_SYNC_PINECONE:
+        return
     if not os.environ.get('PINECONE_API_KEY'):
         return
     try:
