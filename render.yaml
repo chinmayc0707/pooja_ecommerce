@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: pooja-ecommerce
+    runtime: python
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      python -c "from rag.embeddings import get_embeddings; print('Pre-loading embedding model...'); emb = get_embeddings(); print('Embedding model cached successfully.')"
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: TOKENIZERS_PARALLELISM
+        value: "false"

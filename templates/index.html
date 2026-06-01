@@ -786,11 +786,13 @@
                 removeTyping();
 
                 if (!res.ok || data.error) {
-                    appendMessage('bot', '⚠️ ' + data.error);
-                } else {
+                    appendMessage('bot', '⚠️ ' + (data.error || 'Something went wrong. Please try again.'));
+                } else if (data.answer) {
                     appendMessage('bot', data.answer);
                     chatHistory.push({ role: 'assistant', content: data.answer });
                     appendSources(data.sources);
+                } else {
+                    appendMessage('bot', '⚠️ The AI assistant returned an empty response. Please try again.');
                 }
             } catch (e) {
                 removeTyping();

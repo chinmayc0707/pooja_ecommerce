@@ -51,12 +51,25 @@ def get_embeddings():
             api_key=os.getenv("OPENAI_API_KEY"),
         )
     elif provider == "huggingface":
-        from langchain_huggingface import HuggingFaceEmbeddings
-        return HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
-        )
+        try:
+            from langchain_huggingface import HuggingFaceEmbeddings
+            import logging
+            logging.getLogger(__name__).info(
+                "Loading HuggingFace embedding model 'all-MiniLM-L6-v2' (this may take a moment on first run)..."
+            )
+            embeddings = HuggingFaceEmbeddings(
+                model_name="sentence-transformers/all-MiniLM-L6-v2",
+                model_kwargs={"device": "cpu"},
+                encode_kwargs={"normalize_embeddings": True},
+            )
+            logging.getLogger(__name__).info("HuggingFace embedding model loaded successfully.")
+            return embeddings
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to load HuggingFace embedding model: {e}. "
+                "This often means the server ran out of memory or couldn't download the model. "
+                "Ensure the server has at least 512MB free RAM and internet access during build."
+            ) from e
     else:
         raise ValueError(
             f"Unknown EMBEDDING_PROVIDER: {provider!r}. Choose from: openai, huggingface"

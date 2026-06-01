@@ -1267,8 +1267,14 @@ def chat():
         from rag.rag_engine import ask
         result = ask(question, history)
         return jsonify(result)
+    except ImportError as e:
+        app.logger.error(f'RAG import error (missing dependency on this platform?): {e}')
+        return jsonify({'error': f'AI assistant dependency not available: {e}. Check that all packages are installed.'}), 503
+    except MemoryError:
+        app.logger.error('RAG chat ran out of memory — likely loading the embedding model.')
+        return jsonify({'error': 'The AI assistant ran out of memory. The server may need more RAM to load the AI model.'}), 503
     except Exception as e:
-        app.logger.error(f'RAG chat error: {e}')
+        app.logger.error(f'RAG chat error ({type(e).__name__}): {e}')
         return jsonify({'error': 'Something went wrong with the AI assistant. Please try again.'}), 500
 
 
