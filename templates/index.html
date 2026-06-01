@@ -692,7 +692,8 @@
          * extract just the answer string so the user never sees raw JSON.
          */
         function extractAnswerFromJson(text) {
-            const trimmed = text.trim();
+            if (text == null) return '';
+            const trimmed = String(text).trim();
             // Handle ```json ... ``` fenced blocks
             const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]+?)\s*```$/);
             const jsonStr = fenced ? fenced[1] : trimmed;
@@ -785,9 +786,9 @@
                 removeTyping();
 
                 if (!res.ok || data.error) {
-                    appendMessage('bot', '⚠️ ' + data.error);
+                    appendMessage('bot', '⚠️ ' + (data.error || 'An error occurred. Please try again.'));
                 } else {
-                    appendMessage('bot', data.answer);
+                    appendMessage('bot', data.answer || '');
                     chatHistory.push({ role: 'assistant', content: data.answer });
                     appendSources(data.sources);
                 }
