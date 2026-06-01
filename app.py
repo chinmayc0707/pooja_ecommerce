@@ -1268,14 +1268,67 @@ def chat():
         result = ask(question, history)
         return jsonify(result)
     except ImportError as e:
-        app.logger.error(f'RAG import error (missing dependency on this platform?): {e}')
-        return jsonify({'error': f'AI assistant dependency not available: {e}. Check that all packages are installed.'}), 503
+        app.logger.error(f'RAG import error: {e}')
+        return jsonify({'error': f'AI dependency missing: {e}'}), 503
     except MemoryError:
-        app.logger.error('RAG chat ran out of memory — likely loading the embedding model.')
-        return jsonify({'error': 'The AI assistant ran out of memory. The server may need more RAM to load the AI model.'}), 503
+        app.logger.error('RAG out of memory loading model')
+        return jsonify({'error': 'Server ran out of memory loading the AI model.'}), 503
     except Exception as e:
         app.logger.error(f'RAG chat error ({type(e).__name__}): {e}')
-        return jsonify({'error': 'Something went wrong with the AI assistant. Please try again.'}), 500
+        return jsonify({'error': f'AI assistant error ({type(e).__name__}): {e}'}), 500
+
+
+# ─── Chat health check (diagnose Render issues) ───────────────────────────────
+@app.route('/chat/health')
+def chat_health():
+    """Diagnostic endpoint to test each component of the AI pipeline."""
+    checks = {}
+
+    # 1. Check env vars
+    checks['env_vars'] = {
+        'PINECONE_API_KEY': bool(os.environ.get('PINECONE_API_KEY')),
+        'LLM_PROVIDER': os.environ.get('LLM_PROVIDER', '(not set, defaults to openai)'),
+        'OPENROUTER_API_KEY': bool(os.environ.get('OPENROUTER_API_KEY')),
+        'EMBEDDING_PROVIDER': os.environ.get('EMBEDDING_PROVIDER', '(not set, auto-detect)'),
+    }
+
+    # 2. Check embedding model
+    try:
+        from rag.embeddings import get_embedding_provider, get_embeddings
+        provider = get_embedding_provider()
+        checks['embedding_provider'] = provider
+        emb = get_embeddings()
+        test_vec = emb.embed_query("test")
+        checks['embedding_model'] = f'OK (dim={len(test_vec)})'
+    except Exception as e:
+        checks['embedding_model'] = f'FAILED: {type(e).__name__}: {e}'
+
+    # 3. Check Pinecone connection
+    try:
+        from pinecone import Pinecone
+        pc = Pinecone(api_key=os.environ.get('PINECONE_API_KEY'))
+        index_name = os.environ.get('PINECONE_INDEX_NAME', 'pooja-store')
+        index = pc.Index(index_name)
+        stats = index.describe_index_stats()
+        checks['pinecone'] = f'OK (vectors={stats.get("total_vector_count", "?")})'
+    except Exception as e:
+        checks['pinecone'] = f'FAILED: {type(e).__name__}: {e}'
+
+    # 4. Check LLM connectivity (quick test)
+    try:
+        from rag.rag_engine import _get_llm
+        llm = _get_llm()
+        checks['llm'] = f'OK ({type(llm).__name__})'
+    except Exception as e:
+        checks['llm'] = f'FAILED: {type(e).__name__}: {e}'
+
+    all_ok = all(
+        isinstance(v, str) and v.startswith('OK')
+        for k, v in checks.items()
+        if k not in ('env_vars', 'embedding_provider')
+    )
+    checks['overall'] = 'HEALTHY' if all_ok else 'UNHEALTHY'
+    return jsonify(checks), 200 if all_ok else 503
 
 
 # ─── Admin: manual reindex ─────────────────────────────────────────────────────
@@ -1300,3 +1353,4 @@ if __name__ == '__main__':
     except SupabaseSetupError as exc:
         raise SystemExit(str(exc)) from exc
     app.run(debug=True)
+
