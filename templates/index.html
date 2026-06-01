@@ -776,6 +776,20 @@
                 const data = await res.json();
                 removeTyping();
 
+                // Synchronize cart count in case the RAG assistant added an item
+                try {
+                    const cartRes = await fetch('/api/cart_count');
+                    if (cartRes.ok) {
+                        const cartData = await cartRes.json();
+                        const badge = document.getElementById('cart-count');
+                        if (badge) {
+                            badge.innerText = cartData.cart_count;
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to sync cart count:', err);
+                }
+
                 if (data.error) {
                     appendMessage('bot', '⚠️ ' + data.error);
                 } else {

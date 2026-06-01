@@ -19,13 +19,29 @@ from typing import List
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langchain_core.tools import tool
 from langchain_core.documents import Document
 
 load_dotenv()
 
 
 # ─── Structured output schema ─────────────────────────────────────────────────
+
+
+@tool
+def add_to_cart_tool(product_id: int) -> str:
+    """Adds a product to the user's shopping cart given its product_id."""
+    from flask import session
+    try:
+        cart = session.get('cart', [])
+        cart.append(product_id)
+        session['cart'] = cart
+        session.modified = True
+        return f"Successfully added product ID {product_id} to cart."
+    except Exception as e:
+        return f"Error adding to cart: {str(e)}"
+
 class RAGResponse(BaseModel):
     """Structured response the LLM must produce."""
     answer: str = Field(
@@ -172,6 +188,9 @@ of products you actually mentioned or recommended in your answer text. \
 If you recommended two products, include exactly those two IDs. \
 Do not include IDs of products you retrieved but did not mention.
 
+CART ACTION RULE:
+You have access to a tool called `add_to_cart_tool`. Use this tool to add a product to the user's cart if they explicitly request to buy it or add it to their cart. You must pass the exact integer product ID from the CONTEXT.
+
 CONTEXT (retrieved products from our catalog):
 {context}"""
 
@@ -237,16 +256,39 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
     answer: str = ""
 
     try:
-        structured_llm = llm.with_structured_output(RAGResponse)
-        chain = prompt | structured_llm
-        result: RAGResponse = chain.invoke(invoke_input)
+        llm_with_tools = llm.bind_tools([add_to_cart_tool, RAGResponse])
+        messages = prompt.invoke(invoke_input).to_messages()
 
-        answer = result.answer
-        # Filter to only IDs that were actually in the retrieved docs
-        cited_ids = [
-            int(pid) for pid in result.cited_product_ids
-            if int(pid) in doc_lookup
-        ]
+        for _ in range(3):
+            ai_msg = llm_with_tools.invoke(messages)
+            messages.append(ai_msg)
+
+            if not ai_msg.tool_calls:
+                # LLM responded with text directly
+                answer = ai_msg.content if isinstance(ai_msg.content, str) else str(ai_msg.content)
+                # Parse cited IDs as fallback
+                cited_ids = [
+                    pid for pid, meta in doc_lookup.items()
+                    if meta.get("name", "").lower() in answer.lower()
+                ]
+                break
+
+            # Check if RAGResponse was called
+            rag_calls = [tc for tc in ai_msg.tool_calls if tc["name"] == "RAGResponse"]
+            if rag_calls:
+                result_args = rag_calls[0]["args"]
+                answer = result_args.get("answer", "")
+                cited_ids = [
+                    int(pid) for pid in result_args.get("cited_product_ids", [])
+                    if int(pid) in doc_lookup
+                ]
+                break
+
+            # Execute other tools
+            for tc in ai_msg.tool_calls:
+                if tc["name"] == "add_to_cart_tool":
+                    tool_result = add_to_cart_tool.invoke(tc["args"])
+                    messages.append(ToolMessage(content=str(tool_result), tool_call_id=tc["id"]))
 
     except Exception:
         # Fallback for models that don't support tool calling (e.g. some OpenRouter free tiers)
