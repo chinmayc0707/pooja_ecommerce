@@ -773,10 +773,18 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ question, history: chatHistory.slice(-10) })
                 });
-                const data = await res.json();
+                const raw = await res.text();
+                let data = {};
+                try {
+                    data = raw ? JSON.parse(raw) : {};
+                } catch (parseError) {
+                    data = {
+                        error: `AI service returned an unexpected response (${res.status}). Please check the server logs.`
+                    };
+                }
                 removeTyping();
 
-                if (data.error) {
+                if (!res.ok || data.error) {
                     appendMessage('bot', '⚠️ ' + data.error);
                 } else {
                     appendMessage('bot', data.answer);
@@ -785,7 +793,7 @@
                 }
             } catch (e) {
                 removeTyping();
-                appendMessage('bot', '⚠️ Network error. Please try again.');
+                appendMessage('bot', 'Could not reach the AI service. Please try again.');
             } finally {
                 isSending = false;
                 sendBtn.disabled = false;

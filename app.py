@@ -13,6 +13,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.exceptions import HTTPException
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -709,6 +710,27 @@ def _admin_redirect(message=None, error=None):
     return redirect(url_for('admin'))
 
 
+def _json_error(message, status=500):
+    return jsonify({'error': message}), status
+
+
+@app.errorhandler(SupabaseError)
+def handle_supabase_error(exc):
+    if request.path == '/chat':
+        return _json_error(str(exc), exc.status or 500)
+    raise exc
+
+
+@app.errorhandler(Exception)
+def handle_chat_exception(exc):
+    if isinstance(exc, HTTPException):
+        return exc
+    if request.path == '/chat':
+        app.logger.exception('Unhandled chat request error')
+        return _json_error('The AI assistant failed before it could answer. Check the server logs for details.', 500)
+    raise exc
+
+
 def _render_admin(error=None, success=None, status=200):
     products = _get_all_products()
     category_list = _get_product_categories(products)
@@ -1171,6 +1193,32 @@ def _delete_product_from_pinecone(product_id: int):
         app.logger.warning(f'Pinecone delete failed for product {product_id}: {e}')
 
 
+def _missing_ai_config():
+    missing = []
+    if not os.environ.get('PINECONE_API_KEY'):
+        missing.append('PINECONE_API_KEY')
+
+    provider = os.environ.get('LLM_PROVIDER', 'openai').lower()
+    provider_keys = {
+        'openai': 'OPENAI_API_KEY',
+        'openrouter': 'OPENROUTER_API_KEY',
+        'google': 'GOOGLE_API_KEY',
+        'anthropic': 'ANTHROPIC_API_KEY',
+        'groq': 'GROQ_API_KEY',
+    }
+    llm_key = provider_keys.get(provider)
+    if not llm_key:
+        missing.append('valid LLM_PROVIDER')
+    elif not os.environ.get(llm_key):
+        missing.append(llm_key)
+
+    embedding_provider = os.environ.get('EMBEDDING_PROVIDER', '').lower()
+    if embedding_provider == 'openai' and not os.environ.get('OPENAI_API_KEY'):
+        missing.append('OPENAI_API_KEY')
+
+    return list(dict.fromkeys(missing))
+
+
 # ─── Chat (RAG) endpoint ───────────────────────────────────────────────────────
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -1179,8 +1227,12 @@ def chat():
     Body: { "question": str, "history": [{"role": "user"|"assistant", "content": str}] }
     Returns: { "answer": str, "sources": [{"product_id", "name", "price", "category", "url"}] }
     """
-    if not os.environ.get('PINECONE_API_KEY'):
-        return jsonify({'error': 'RAG not configured. Please set up your .env file.'}), 503
+    missing_config = _missing_ai_config()
+    if missing_config:
+        return _json_error(
+            f"AI assistant is not configured. Missing: {', '.join(missing_config)}.",
+            503,
+        )
 
     data = request.get_json(force=True)
     question = (data.get('question') or '').strip()

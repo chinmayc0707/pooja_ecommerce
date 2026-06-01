@@ -251,6 +251,20 @@ def test_product_and_setting_helpers_use_supabase_store(monkeypatch):
     assert ("POST", "/rest/v1/settings") in [(call["method"], call["path"]) for call in calls]
 
 
+def test_chat_reports_missing_ai_config_as_json(client, monkeypatch):
+    monkeypatch.delenv("PINECONE_API_KEY", raising=False)
+    monkeypatch.setenv("LLM_PROVIDER", "openrouter")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    response = client.post("/chat", json={"question": "Which diya should I buy?"})
+
+    assert response.status_code == 503
+    assert response.is_json
+    assert response.get_json()["error"] == (
+        "AI assistant is not configured. Missing: PINECONE_API_KEY, OPENROUTER_API_KEY."
+    )
+
+
 def test_first_request_initializes_database_for_wsgi_import(tmp_path):
     app.config.update(
         TESTING=True,
