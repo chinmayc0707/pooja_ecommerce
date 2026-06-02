@@ -756,6 +756,59 @@
             return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
 
+        function streamMessage(bubble, text, onComplete) {
+
+            let index = 0;
+
+            bubble.innerHTML = "";
+
+            const interval = setInterval(() => {
+
+                if (index < text.length) {
+
+                    index += Math.max(1, Math.floor(Math.random() * 3));
+
+                    if (index > text.length) index = text.length;
+
+                    const currentText = text.slice(0, index);
+
+                    const rawHtml = marked.parse(currentText + "|");
+
+                    bubble.innerHTML = DOMPurify.sanitize(rawHtml, {
+
+                        ADD_ATTR: ["target"],
+
+                        FORBID_TAGS: ["script", "style"],
+
+                    });
+
+                    scrollToBottom();
+
+                } else {
+
+                    clearInterval(interval);
+
+                    const finalHtml = marked.parse(text);
+
+                    bubble.innerHTML = DOMPurify.sanitize(finalHtml, {
+
+                        ADD_ATTR: ["target"],
+
+                        FORBID_TAGS: ["script", "style"],
+
+                    });
+
+                    scrollToBottom();
+
+                    if (onComplete) onComplete();
+
+                }
+
+            }, 15);
+
+        }
+
+
         async function sendMessage() {
             if (isSending) return;
             const input = document.getElementById('chat-input');
@@ -792,9 +845,9 @@
                 if (!res.ok || data.error) {
                     appendMessage('bot', '⚠️ ' + (data.error || 'Something went wrong. Please try again.'));
                 } else if (data.answer) {
-                    appendMessage('bot', data.answer);
+                    const bubble = appendMessage('bot', ''); streamMessage(bubble, data.answer, () => {
                     chatHistory.push({ role: 'assistant', content: data.answer });
-                    appendSources(data.sources);
+                    appendSources(data.sources); });
                 } else {
                     appendMessage('bot', '⚠️ The AI assistant returned an empty response. Please try again.');
                 }
