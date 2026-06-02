@@ -1217,9 +1217,6 @@ def _delete_product_from_pinecone(product_id: int):
 
 def _missing_ai_config():
     missing = []
-    if not os.environ.get('PINECONE_API_KEY'):
-        missing.append('PINECONE_API_KEY')
-
     provider = os.environ.get('LLM_PROVIDER', 'openai').lower()
     provider_keys = {
         'openai': 'OPENAI_API_KEY',

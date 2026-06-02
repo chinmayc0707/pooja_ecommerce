@@ -9,6 +9,7 @@ from werkzeug.datastructures import FileStorage
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 app_module = importlib.import_module("app")
+rag_engine = importlib.import_module("rag.rag_engine")
 from app import Product, app, db, init_db
 
 
@@ -356,8 +357,37 @@ def test_chat_reports_missing_ai_config_as_json(client, monkeypatch):
     assert response.status_code == 503
     assert response.is_json
     assert response.get_json()["error"] == (
-        "AI assistant is not configured. Missing: PINECONE_API_KEY, OPENROUTER_API_KEY."
+        "AI assistant is not configured. Missing: OPENROUTER_API_KEY."
     )
+
+
+def test_rag_retrieval_falls_back_to_supabase_catalog(monkeypatch):
+    def fail_vectorstore():
+        raise RuntimeError("pinecone unavailable")
+
+    monkeypatch.setenv("PINECONE_API_KEY", "test-key")
+    monkeypatch.setattr(rag_engine, "_get_vectorstore", fail_vectorstore)
+    monkeypatch.setattr(
+        app_module,
+        "_get_all_products",
+        lambda: [
+            app_module.ProductRecord(
+                id=42,
+                name="Brass Diya",
+                category="Brass Items",
+                price=499.0,
+                stock=10,
+                description="Traditional brass oil lamp.",
+                image_url="",
+            )
+        ],
+    )
+
+    docs = rag_engine._retrieve_docs("brass diya")
+
+    assert docs
+    assert docs[0].metadata["product_id"] == 42
+    assert "Brass Diya" in docs[0].page_content
 
 
 def test_first_request_initializes_database_for_wsgi_import(tmp_path):

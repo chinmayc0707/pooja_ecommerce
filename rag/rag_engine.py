@@ -15,6 +15,8 @@ via LLM_PROVIDER env var, and pluggable embeddings via EMBEDDING_PROVIDER.
 """
 
 import os
+import logging
+import re
 from typing import List
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -23,6 +25,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 # ─── Structured output schema ─────────────────────────────────────────────────
@@ -62,6 +65,66 @@ def _get_vectorstore():
 
     _vectorstore = PineconeVectorStore(index=index, embedding=embeddings)
     return _vectorstore
+
+
+def _product_to_document(product) -> Document:
+    content = (
+        f"Product: {product.name}\n"
+        f"Category: {product.category}\n"
+        f"Price: Rs. {float(product.price):.2f}\n"
+        f"Stock: {product.stock} units available\n"
+        f"Description: {product.description or 'No description provided.'}"
+    )
+    metadata = {
+        "product_id": int(product.id),
+        "name": product.name,
+        "price": float(product.price),
+        "category": product.category,
+        "url": f"/product/{product.id}",
+    }
+    return Document(page_content=content, metadata=metadata)
+
+
+def _catalog_docs_from_supabase(question: str, limit: int = 6) -> list[Document]:
+    from app import app as flask_app, _get_all_products
+
+    with flask_app.app_context():
+        products = _get_all_products()
+
+    docs = [_product_to_document(product) for product in products]
+    tokens = {
+        token
+        for token in re.findall(r"[a-z0-9]+", (question or "").lower())
+        if len(token) > 2
+    }
+    if not tokens:
+        return docs[:limit]
+
+    def score(doc: Document) -> int:
+        haystack = f"{doc.page_content} {doc.metadata.get('name', '')} {doc.metadata.get('category', '')}".lower()
+        return sum(1 for token in tokens if token in haystack)
+
+    ranked = sorted(docs, key=score, reverse=True)
+    matched = [doc for doc in ranked if score(doc) > 0]
+    return (matched or ranked)[:limit]
+
+
+def _retrieve_docs(question: str) -> list[Document]:
+    if os.environ.get("PINECONE_API_KEY"):
+        try:
+            vectorstore = _get_vectorstore()
+            retriever = vectorstore.as_retriever(
+                search_type="similarity",
+                search_kwargs={"k": 6},
+            )
+            docs = retriever.invoke(question)
+            if docs:
+                return docs
+            logger.warning("Pinecone returned no matching documents; falling back to Supabase catalog.")
+        except Exception as exc:
+            logger.warning("Pinecone retrieval failed; falling back to Supabase catalog: %s", exc)
+
+    return _catalog_docs_from_supabase(question)
 
 
 # ─── Pluggable LLM factory ────────────────────────────────────────────────────
@@ -194,13 +257,8 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
     """
     chat_history = chat_history or []
 
-    # 1. Retrieve semantically relevant products
-    vectorstore = _get_vectorstore()
-    retriever = vectorstore.as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": 6},
-    )
-    docs = retriever.invoke(question)
+    # 1. Retrieve relevant products from Pinecone, with Supabase catalog fallback.
+    docs = _retrieve_docs(question)
 
     # 2. Build a fast ID → metadata lookup from retrieved docs
     doc_lookup: dict[int, dict] = {}
