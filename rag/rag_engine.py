@@ -114,11 +114,13 @@ def _retrieve_docs(question: str) -> list[Document]:
     embedding_provider = os.environ.get("EMBEDDING_PROVIDER", "").lower()
     openai_embeddings_available = bool(os.environ.get("OPENAI_API_KEY"))
     local_embeddings_allowed = os.environ.get("ALLOW_LOCAL_EMBEDDINGS", "").lower() in {"1", "true", "yes", "on"}
+    hf_api_embeddings = embedding_provider == "huggingface_api"
     pinecone_safe = (
         os.environ.get("PINECONE_API_KEY")
         and (
             openai_embeddings_available
             or embedding_provider == "openai"
+            or hf_api_embeddings
             or local_embeddings_allowed
             or not render_runtime
         )
@@ -162,6 +164,7 @@ def _get_llm():
             temperature=0.2,
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
+            request_timeout=90,
             default_headers={
                 "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "http://localhost:5000"),
                 "X-Title": os.getenv("OPENROUTER_SITE_NAME", "Pooja Ecommerce"),
@@ -193,7 +196,7 @@ def _get_llm():
             f"Unknown LLM_PROVIDER: {provider!r}. "
             "Choose from: openai, openrouter, google, anthropic, groq"
         )
-    
+
 
 # ─── Format retrieved docs for the prompt ────────────────────────────────────
 def _format_docs(docs: List[Document]) -> str:
@@ -216,7 +219,7 @@ def _clean_answer(text: str) -> str:
     (e.g. fallback path with a model that outputs structured JSON as text),
     extract just the 'answer' field so the user never sees raw JSON.
     """
-    import json, re
+    import json
     text = text.strip()
     # Strip ```json ... ``` fence if present
     fenced = re.match(r'^```(?:json)?\s*([\s\S]+?)\s*```$', text)
@@ -276,7 +279,7 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
     # 1. Retrieve relevant products from Pinecone, with Supabase catalog fallback.
     docs = _retrieve_docs(question)
 
-    # 2. Build a fast ID → metadata lookup from retrieved docs
+    # 2. Build a fast ID -> metadata lookup from retrieved docs
     doc_lookup: dict[int, dict] = {}
     for doc in docs:
         pid = doc.metadata.get("product_id")
