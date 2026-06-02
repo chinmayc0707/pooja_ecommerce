@@ -38,7 +38,7 @@ EMBEDDING_DIMS = {
 }
 
 _HF_API_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-_HF_API_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{_HF_API_MODEL}"
+_HF_API_URL = f"https://router.huggingface.co/hf-inference/pipeline/feature-extraction/{_HF_API_MODEL}"
 
 
 def _torch_available() -> bool:
@@ -83,6 +83,8 @@ class _HuggingFaceAPIEmbeddings:
             self._headers["Authorization"] = f"Bearer {token}"
 
     def _call_api(self, texts: list[str]) -> list[list[float]]:
+        if "Authorization" not in self._headers:
+            raise ValueError("HF_TOKEN or HUGGINGFACEHUB_API_TOKEN environment variable is required to use the HuggingFace Inference API.")
         import requests
         import logging
         logger = logging.getLogger(__name__)
