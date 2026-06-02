@@ -1261,9 +1261,9 @@ def chat():
         return jsonify({'error': 'No question provided.'}), 400
 
     try:
-        from rag.rag_engine import ask
-        result = ask(question, history)
-        return jsonify(result)
+        from rag.rag_engine import stream_ask
+        generator = stream_ask(question, history)
+        from flask import Response; return Response(generator, mimetype='application/x-ndjson')
     except ImportError as e:
         app.logger.error(f'RAG import error: {e}')
         return jsonify({'error': f'AI dependency missing: {e}'}), 503

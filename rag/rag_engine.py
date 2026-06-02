@@ -261,6 +261,7 @@ CONTEXT (retrieved products from our catalog):
 # ─── Public API ───────────────────────────────────────────────────────────────
 def ask(question: str, chat_history: list[dict] | None = None) -> dict:
     """
+    (Deprecated: Use stream_ask instead)
     Run the agentic RAG pipeline.
 
     Args:
@@ -355,3 +356,78 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
         })
 
     return {"answer": answer, "sources": sources}
+
+import json
+def stream_ask(question: str, chat_history: list[dict] | None = None):
+    """
+    Run the agentic RAG pipeline and stream the response back.
+    Yields NDJSON chunks:
+      {"chunk": "..."}
+    And finally:
+      {"sources": [{"product_id", ...}]}
+    """
+    chat_history = chat_history or []
+
+    docs = _retrieve_docs(question)
+
+    doc_lookup: dict[int, dict] = {}
+    for doc in docs:
+        pid = doc.metadata.get("product_id")
+        if pid is not None:
+            doc_lookup[int(pid)] = doc.metadata
+
+    context = _format_docs(docs)
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT),
+        MessagesPlaceholder("chat_history"),
+        ("human", "{input}"),
+    ])
+
+    lc_history = []
+    for msg in chat_history:
+        if msg.get("role") == "user":
+            lc_history.append(HumanMessage(content=msg["content"]))
+        elif msg.get("role") == "assistant":
+            lc_history.append(AIMessage(content=msg["content"]))
+
+    invoke_input = {
+        "context": context,
+        "input": question,
+        "chat_history": lc_history,
+    }
+
+    llm = _get_llm()
+    # We skip structured output during streaming because most langchain LLMs
+    # don't stream structured output cleanly token-by-token.
+    chain = prompt | llm
+
+    full_answer = ""
+    try:
+        for chunk in chain.stream(invoke_input):
+            text_chunk = chunk.content if hasattr(chunk, "content") else str(chunk)
+            full_answer += text_chunk
+            yield json.dumps({"chunk": text_chunk}) + "\n"
+    except Exception as e:
+        logger.error(f"Streaming error: {e}")
+        yield json.dumps({"error": f"Streaming error: {e}"}) + "\n"
+        return
+
+    # Heuristic fallback for citations
+    cited_ids = [
+        pid for pid, meta in doc_lookup.items()
+        if meta.get("name", "").lower() in full_answer.lower()
+    ]
+
+    sources = []
+    for pid in cited_ids:
+        meta = doc_lookup.get(pid, {})
+        sources.append({
+            "product_id": pid,
+            "name": meta.get("name", ""),
+            "price": meta.get("price", 0),
+            "category": meta.get("category", ""),
+            "url": meta.get("url", f"/product/{pid}"),
+        })
+
+    yield json.dumps({"sources": sources, "answer": full_answer}) + "\n"
