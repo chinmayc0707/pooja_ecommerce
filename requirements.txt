@@ -43,7 +43,7 @@ jiter==0.15.0
 joblib==1.5.3
 jsonpatch==1.33
 jsonpointer==3.1.1
-langchain==0.3.25
+langchain
 langchain-anthropic
 langchain-core
 langchain-google-genai
