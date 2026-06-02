@@ -84,20 +84,34 @@ class _HuggingFaceAPIEmbeddings:
 
     def _call_api(self, texts: list[str]) -> list[list[float]]:
         import requests
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Filter out empty or whitespace-only strings which can cause 400 errors
+        # We keep a placeholder for empty strings to maintain list length
+        processed_texts = [t if (t and t.strip()) else " " for t in texts]
 
         payload = {
-            "inputs": texts,
+            "inputs": processed_texts,
             "options": {"wait_for_model": True},
         }
-        resp = requests.post(self._api_url, json=payload, headers=self._headers, timeout=60)
-        if resp.status_code == 503:
-            # Model is loading — retry once
-            import time
-            time.sleep(5)
+        
+        try:
             resp = requests.post(self._api_url, json=payload, headers=self._headers, timeout=60)
-
-        resp.raise_for_status()
-        data = resp.json()
+            if resp.status_code == 503:
+                # Model is loading — retry once
+                import time
+                time.sleep(5)
+                resp = requests.post(self._api_url, json=payload, headers=self._headers, timeout=60)
+            
+            if resp.status_code != 200:
+                logger.error(f"HF API Error {resp.status_code}: {resp.text}")
+                resp.raise_for_status()
+                
+            data = resp.json()
+        except Exception as e:
+            logger.error(f"Exception calling HF API: {e}")
+            raise e
 
         # API returns list of lists of floats
         if isinstance(data, list) and len(data) > 0:
