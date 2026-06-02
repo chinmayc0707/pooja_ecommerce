@@ -38,7 +38,7 @@ EMBEDDING_DIMS = {
 }
 
 _HF_API_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-_HF_API_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{_HF_API_MODEL}"
+_HF_API_URL = f"https://router.huggingface.co/hf-inference/models/{_HF_API_MODEL}/pipeline/feature-extraction"
 
 
 def _torch_available() -> bool:
@@ -87,31 +87,78 @@ class _HuggingFaceAPIEmbeddings:
 
         payload = {
             "inputs": texts,
-            "options": {"wait_for_model": True},
         }
-        resp = requests.post(self._api_url, json=payload, headers=self._headers, timeout=60)
-        if resp.status_code == 503:
-            # Model is loading — retry once
-            import time
-            time.sleep(5)
-            resp = requests.post(self._api_url, json=payload, headers=self._headers, timeout=60)
 
-        resp.raise_for_status()
-        data = resp.json()
+        max_retries = 2
+        last_error = None
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.post(
+                    self._api_url,
+                    json=payload,
+                    headers=self._headers,
+                    timeout=60,
+                )
 
-        # API returns list of lists of floats
-        if isinstance(data, list) and len(data) > 0:
-            # Might be nested: [[float, ...], ...] or [[[float, ...]]]
-            if isinstance(data[0], list) and isinstance(data[0][0], float):
-                return data  # Already flat: [[float, ...], [float, ...]]
-            elif isinstance(data[0], list) and isinstance(data[0][0], list):
-                # Token-level embeddings — mean-pool to get sentence embedding
-                import statistics
-                return [
-                    [statistics.mean(token_vals) for token_vals in zip(*token_embeddings)]
-                    for token_embeddings in data
-                ]
-        raise ValueError(f"Unexpected HF API response format: {type(data)}")
+                if resp.status_code == 503:
+                    # Model is loading — wait and retry
+                    import time
+                    logger.info("HF model loading, retrying in 10s (attempt %d)...", attempt + 1)
+                    time.sleep(10)
+                    continue
+
+                if resp.status_code == 400:
+                    # Common cause: missing or invalid auth token
+                    error_detail = resp.text[:500]
+                    logger.error(
+                        "HF API returned 400. Response: %s. "
+                        "Ensure HF_TOKEN is set in your environment variables.",
+                        error_detail,
+                    )
+                    raise requests.exceptions.HTTPError(
+                        f"400 Bad Request from HuggingFace API. "
+                        f"This usually means HF_TOKEN is missing or invalid. "
+                        f"Set the HF_TOKEN environment variable with a valid "
+                        f"HuggingFace access token. Response: {error_detail}",
+                        response=resp,
+                    )
+
+                if resp.status_code == 401 or resp.status_code == 403:
+                    raise requests.exceptions.HTTPError(
+                        f"{resp.status_code} Auth Error: HF_TOKEN is missing or invalid. "
+                        f"Get a free token at https://huggingface.co/settings/tokens",
+                        response=resp,
+                    )
+
+                resp.raise_for_status()
+                data = resp.json()
+
+                # API returns list of lists of floats
+                if isinstance(data, list) and len(data) > 0:
+                    # Might be nested: [[float, ...], ...] or [[[float, ...]]]
+                    if isinstance(data[0], list) and isinstance(data[0][0], float):
+                        return data  # Already flat: [[float, ...], [float, ...]]
+                    elif isinstance(data[0], list) and isinstance(data[0][0], list):
+                        # Token-level embeddings — mean-pool to get sentence embedding
+                        import statistics
+                        return [
+                            [statistics.mean(token_vals) for token_vals in zip(*token_embeddings)]
+                            for token_embeddings in data
+                        ]
+                raise ValueError(f"Unexpected HF API response format: {type(data)}")
+
+            except requests.exceptions.HTTPError:
+                raise  # Don't retry HTTP errors (except 503 handled above)
+            except requests.exceptions.RequestException as e:
+                last_error = e
+                if attempt < max_retries:
+                    import time
+                    logger.warning("HF API request failed (attempt %d): %s", attempt + 1, e)
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
+
+        raise RuntimeError(f"HF API failed after {max_retries + 1} attempts: {last_error}")
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Embed a list of documents."""
