@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: pooja-ecommerce
+    name: pooja-ecommerce-testing
     runtime: python
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: gunicorn app:app --config gunicorn.conf.py
