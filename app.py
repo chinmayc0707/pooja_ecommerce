@@ -1235,8 +1235,14 @@ def _missing_ai_config():
         missing.append(llm_key)
 
     embedding_provider = os.environ.get('EMBEDDING_PROVIDER', '').lower()
-    if embedding_provider == 'openai' and not os.environ.get('OPENAI_API_KEY'):
-        missing.append('OPENAI_API_KEY')
+    embedding_keys = {
+        'pinecone': 'PINECONE_API_KEY',
+        'openai': 'OPENAI_API_KEY',
+        'google': 'GOOGLE_API_KEY',
+    }
+    emb_key = embedding_keys.get(embedding_provider)
+    if emb_key and not os.environ.get(emb_key):
+        missing.append(emb_key)
 
     return list(dict.fromkeys(missing))
 
@@ -1294,14 +1300,16 @@ def chat_health():
 
     # 2. Check embedding model
     try:
-        from rag.embeddings import get_embedding_provider, get_embeddings
+        from rag.embeddings import get_embedding_provider, get_embeddings, EMBED_MODEL
         provider = get_embedding_provider()
         checks['embedding_provider'] = provider
         emb = get_embeddings()
+        checks['embed_model'] = EMBED_MODEL
         test_vec = emb.embed_query("test")
         checks['embedding_model'] = f'OK (dim={len(test_vec)})'
     except Exception as e:
         checks['embedding_model'] = f'FAILED: {type(e).__name__}: {e}'
+
 
     # 3. Check Pinecone connection
     try:
