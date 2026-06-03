@@ -15,6 +15,8 @@ via LLM_PROVIDER env var, and pluggable embeddings via EMBEDDING_PROVIDER.
 """
 
 import os
+import logging
+import re
 from typing import List
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -23,6 +25,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 # ─── Structured output schema ─────────────────────────────────────────────────
@@ -64,6 +67,84 @@ def _get_vectorstore():
     return _vectorstore
 
 
+def _product_to_document(product) -> Document:
+    content = (
+        f"Product: {product.name}\n"
+        f"Category: {product.category}\n"
+        f"Price: Rs. {float(product.price):.2f}\n"
+        f"Stock: {product.stock} units available\n"
+        f"Description: {product.description or 'No description provided.'}"
+    )
+    metadata = {
+        "product_id": int(product.id),
+        "name": product.name,
+        "price": float(product.price),
+        "category": product.category,
+        "url": f"/product/{product.id}",
+    }
+    return Document(page_content=content, metadata=metadata)
+
+
+def _catalog_docs_from_supabase(question: str, limit: int = 6) -> list[Document]:
+    from app import app as flask_app, _get_all_products
+
+    with flask_app.app_context():
+        products = _get_all_products()
+
+    docs = [_product_to_document(product) for product in products]
+    tokens = {
+        token
+        for token in re.findall(r"[a-z0-9]+", (question or "").lower())
+        if len(token) > 2
+    }
+    if not tokens:
+        return docs[:limit]
+
+    def score(doc: Document) -> int:
+        haystack = f"{doc.page_content} {doc.metadata.get('name', '')} {doc.metadata.get('category', '')}".lower()
+        return sum(1 for token in tokens if token in haystack)
+
+    ranked = sorted(docs, key=score, reverse=True)
+    matched = [doc for doc in ranked if score(doc) > 0]
+    return (matched or ranked)[:limit]
+
+
+def _retrieve_docs(question: str) -> list[Document]:
+    render_runtime = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
+    embedding_provider = os.environ.get("EMBEDDING_PROVIDER", "").lower()
+    openai_embeddings_available = bool(os.environ.get("OPENAI_API_KEY"))
+    local_embeddings_allowed = os.environ.get("ALLOW_LOCAL_EMBEDDINGS", "").lower() in {"1", "true", "yes", "on"}
+    hf_api_embeddings = embedding_provider == "huggingface_api"
+    pinecone_safe = (
+        os.environ.get("PINECONE_API_KEY")
+        and (
+            openai_embeddings_available
+            or embedding_provider == "openai"
+            or hf_api_embeddings
+            or local_embeddings_allowed
+            or not render_runtime
+        )
+    )
+
+    if pinecone_safe:
+        try:
+            vectorstore = _get_vectorstore()
+            retriever = vectorstore.as_retriever(
+                search_type="similarity",
+                search_kwargs={"k": 6},
+            )
+            docs = retriever.invoke(question)
+            if docs:
+                return docs
+            logger.warning("Pinecone returned no matching documents; falling back to Supabase catalog.")
+        except Exception as exc:
+            logger.warning("Pinecone retrieval failed; falling back to Supabase catalog: %s", exc)
+    elif os.environ.get("PINECONE_API_KEY"):
+        logger.warning("Skipping Pinecone retrieval to avoid loading local embeddings on Render.")
+
+    return _catalog_docs_from_supabase(question)
+
+
 # ─── Pluggable LLM factory ────────────────────────────────────────────────────
 def _get_llm():
     provider = os.getenv("LLM_PROVIDER", "openai").lower()
@@ -83,6 +164,7 @@ def _get_llm():
             temperature=0.2,
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
+            request_timeout=90,
             default_headers={
                 "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "http://localhost:5000"),
                 "X-Title": os.getenv("OPENROUTER_SITE_NAME", "Pooja Ecommerce"),
@@ -114,7 +196,7 @@ def _get_llm():
             f"Unknown LLM_PROVIDER: {provider!r}. "
             "Choose from: openai, openrouter, google, anthropic, groq"
         )
-    
+
 
 # ─── Format retrieved docs for the prompt ────────────────────────────────────
 def _format_docs(docs: List[Document]) -> str:
@@ -137,7 +219,7 @@ def _clean_answer(text: str) -> str:
     (e.g. fallback path with a model that outputs structured JSON as text),
     extract just the 'answer' field so the user never sees raw JSON.
     """
-    import json, re
+    import json
     text = text.strip()
     # Strip ```json ... ``` fence if present
     fenced = re.match(r'^```(?:json)?\s*([\s\S]+?)\s*```$', text)
@@ -194,15 +276,10 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
     """
     chat_history = chat_history or []
 
-    # 1. Retrieve semantically relevant products
-    vectorstore = _get_vectorstore()
-    retriever = vectorstore.as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": 6},
-    )
-    docs = retriever.invoke(question)
+    # 1. Retrieve relevant products from Pinecone, with Supabase catalog fallback.
+    docs = _retrieve_docs(question)
 
-    # 2. Build a fast ID → metadata lookup from retrieved docs
+    # 2. Build a fast ID -> metadata lookup from retrieved docs
     doc_lookup: dict[int, dict] = {}
     for doc in docs:
         pid = doc.metadata.get("product_id")

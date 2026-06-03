@@ -1217,9 +1217,6 @@ def _delete_product_from_pinecone(product_id: int):
 
 def _missing_ai_config():
     missing = []
-    if not os.environ.get('PINECONE_API_KEY'):
-        missing.append('PINECONE_API_KEY')
-
     provider = os.environ.get('LLM_PROVIDER', 'openai').lower()
     provider_keys = {
         'openai': 'OPENAI_API_KEY',
@@ -1298,31 +1295,41 @@ def chat_health():
         'EMBEDDING_PROVIDER': os.environ.get('EMBEDDING_PROVIDER', '(not set, auto-detect)'),
     }
 
-    # 2. Check embedding model
+    # 2. Check embedding provider without loading heavy local models on Render.
     try:
-        from rag.embeddings import get_embedding_provider, get_embeddings, EMBED_MODEL
+        from rag.embeddings import get_embedding_dimension, get_embedding_provider
         provider = get_embedding_provider()
         checks['embedding_provider'] = provider
-        emb = get_embeddings()
-        checks['embed_model'] = EMBED_MODEL
-        test_vec = emb.embed_query("test")
-        checks['embedding_model'] = f'OK (dim={len(test_vec)})'
+        render_runtime = bool(os.environ.get('RENDER') or os.environ.get('RENDER_SERVICE_ID'))
+        local_embeddings_allowed = os.environ.get('ALLOW_LOCAL_EMBEDDINGS', '').lower() in {'1', 'true', 'yes', 'on'}
+        if provider == 'huggingface' and render_runtime and not local_embeddings_allowed:
+            checks['embedding_model'] = 'OK (skipped local HuggingFace embeddings on Render)'
+        else:
+            checks['embedding_model'] = f'OK (configured dim={get_embedding_dimension()})'
     except Exception as e:
         checks['embedding_model'] = f'FAILED: {type(e).__name__}: {e}'
 
-
-    # 3. Check Pinecone connection
+    # 3. Check live Supabase catalog fallback.
     try:
-        from pinecone import Pinecone
-        pc = Pinecone(api_key=os.environ.get('PINECONE_API_KEY'))
-        index_name = os.environ.get('PINECONE_INDEX_NAME', 'pooja-store')
-        index = pc.Index(index_name)
-        stats = index.describe_index_stats()
-        checks['pinecone'] = f'OK (vectors={stats.get("total_vector_count", "?")})'
+        checks['catalog'] = f'OK (products={len(_get_all_products())})'
     except Exception as e:
-        checks['pinecone'] = f'FAILED: {type(e).__name__}: {e}'
+        checks['catalog'] = f'FAILED: {type(e).__name__}: {e}'
 
-    # 4. Check LLM connectivity (quick test)
+    # 4. Check optional Pinecone connection without making it fatal.
+    if os.environ.get('PINECONE_API_KEY'):
+        try:
+            from pinecone import Pinecone
+            pc = Pinecone(api_key=os.environ.get('PINECONE_API_KEY'))
+            index_name = os.environ.get('PINECONE_INDEX_NAME', 'pooja-store')
+            index = pc.Index(index_name)
+            stats = index.describe_index_stats()
+            checks['pinecone'] = f'OK (vectors={stats.get("total_vector_count", "?")})'
+        except Exception as e:
+            checks['pinecone'] = f'OPTIONAL_FAILED: {type(e).__name__}: {e}'
+    else:
+        checks['pinecone'] = 'SKIPPED (optional PINECONE_API_KEY not set)'
+
+    # 5. Check LLM configuration.
     try:
         from rag.rag_engine import _get_llm
         llm = _get_llm()
@@ -1333,7 +1340,7 @@ def chat_health():
     all_ok = all(
         isinstance(v, str) and v.startswith('OK')
         for k, v in checks.items()
-        if k not in ('env_vars', 'embedding_provider')
+        if k not in ('env_vars', 'embedding_provider', 'pinecone')
     )
     checks['overall'] = 'HEALTHY' if all_ok else 'UNHEALTHY'
     return jsonify(checks), 200 if all_ok else 503
