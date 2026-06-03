@@ -669,6 +669,51 @@
             msgs.scrollTop = msgs.scrollHeight;
         }
 
+
+        async function streamMessage(role, text) {
+            const msgs = document.getElementById('chat-messages');
+            const bubble = document.createElement('div');
+            bubble.className = `msg-bubble ${role}`;
+            msgs.appendChild(bubble);
+            scrollToBottom();
+
+            if (role === 'bot') {
+                text = extractAnswerFromJson(text);
+
+                // Split text into words (keeping spaces using a regex that splits by space but keeps it)
+                const tokens = text.match(/\S+|\s+/g) || [];
+                let currentText = '';
+
+                for (let i = 0; i < tokens.length; i++) {
+                    currentText += tokens[i];
+
+                    // Render markdown + sanitize
+                    const rawHtml = marked.parse(currentText + ' ▌');
+                    bubble.innerHTML = DOMPurify.sanitize(rawHtml, {
+                        ADD_ATTR: ['target'],
+                        FORBID_TAGS: ['script', 'style'],
+                    });
+
+                    scrollToBottom();
+
+                    // Small delay to simulate streaming word by word
+                    await new Promise(r => setTimeout(r, 20));
+                }
+
+                // Final render without cursor
+                const finalHtml = marked.parse(currentText);
+                bubble.innerHTML = DOMPurify.sanitize(finalHtml, {
+                    ADD_ATTR: ['target'],
+                    FORBID_TAGS: ['script', 'style'],
+                });
+            } else {
+                bubble.textContent = text;
+            }
+
+            scrollToBottom();
+            return bubble;
+        }
+
         function appendMessage(role, text) {
             const msgs = document.getElementById('chat-messages');
             const bubble = document.createElement('div');
@@ -792,7 +837,7 @@
                 if (!res.ok || data.error) {
                     appendMessage('bot', '⚠️ ' + (data.error || 'Something went wrong. Please try again.'));
                 } else if (data.answer) {
-                    appendMessage('bot', data.answer);
+                    await streamMessage('bot', data.answer);
                     chatHistory.push({ role: 'assistant', content: data.answer });
                     appendSources(data.sources);
                 } else {
