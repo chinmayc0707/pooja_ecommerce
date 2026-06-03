@@ -3,53 +3,53 @@ rag/embeddings.py
 ─────────────────
 Pluggable embedding factory.
 
-Controlled by EMBEDDING_PROVIDER env var:
-  - openai          → OpenAIEmbeddings (text-embedding-3-small, 1536 dims) — requires OPENAI_API_KEY
-  - huggingface     → HuggingFaceEmbeddings (all-MiniLM-L6-v2, 384 dims)  — free, runs locally (needs PyTorch)
-  - huggingface_api → HuggingFace Inference API (all-MiniLM-L6-v2, 384 dims) — free, runs remotely (NO PyTorch!)
+Controlled by two env vars:
+  EMBEDDING_PROVIDER  — which backend to use
+  EMBED_MODEL         — override the default model name for any provider
 
-Auto-detection priority:
-  1. Explicit EMBEDDING_PROVIDER env var
-  2. 'openai' if OPENAI_API_KEY is set
-  3. 'huggingface' if torch is importable (local dev)
-  4. 'huggingface_api' as final fallback (cloud deploy without PyTorch)
+Supported providers:
+  - pinecone      → Pinecone Inference API (multilingual-e5-large, 1024 dims)
+                    No extra key needed — reuses PINECONE_API_KEY.
+  - openai        → OpenAI (text-embedding-3-small, 1536 dims)
+  - google        → Google GenAI (models/text-embedding-004, 768 dims)
+  - huggingface   → HuggingFace local (all-MiniLM-L6-v2, 384 dims) — NOT
+                    recommended on memory-constrained servers (needs PyTorch).
+
+Auto-detection priority (when EMBEDDING_PROVIDER is not set):
+  pinecone (PINECONE_API_KEY) → openai (OPENAI_API_KEY) → google (GOOGLE_API_KEY) → huggingface
 
 IMPORTANT: The Pinecone index dimension MUST match the embedding dimension.
-  - openai          → dim=1536
-  - huggingface     → dim=384
-  - huggingface_api → dim=384  (same model, same dims — compatible with huggingface)
-  If you switch between openai and huggingface*, run setup_pinecone.py again.
+  If you switch providers, run  python setup_pinecone.py  again (it will
+  auto-detect the mismatch and recreate the index).
 """
 
 import os
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Suppress HuggingFace Hub unauthenticated warning
-os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-# Dimension map per provider
+# ─── Default model names per provider ─────────────────────────────────────────
+DEFAULT_MODELS = {
+    "pinecone": "multilingual-e5-large",
+    "openai": "text-embedding-3-small",
+    "google": "models/text-embedding-004",
+    "huggingface": "sentence-transformers/all-MiniLM-L6-v2",
+}
+
+# ─── Dimension map per provider ───────────────────────────────────────────────
 EMBEDDING_DIMS = {
     "pinecone": 1024,
     "openai": 1536,
     "google": 768,
     "huggingface": 384,
-    "huggingface_api": 384,
 }
 
-_HF_API_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-_HF_API_URL = f"https://router.huggingface.co/hf-inference/pipeline/feature-extraction/{_HF_API_MODEL}"
-
-
-def _torch_available() -> bool:
-    """Check if PyTorch is importable without actually loading it."""
-    try:
-        import importlib.util
-        return importlib.util.find_spec("torch") is not None
-    except Exception:
-        return False
+# ─── The constant: resolved once at first use ────────────────────────────────
+EMBED_MODEL: str = ""
 
 
 def get_embedding_provider() -> str:
@@ -57,94 +57,23 @@ def get_embedding_provider() -> str:
     provider = os.getenv("EMBEDDING_PROVIDER", "").strip().lower()
     if provider in DEFAULT_MODELS:
         return provider
-    # Auto-detect
+
+    # Auto-detect — prefer cloud providers that don't blow up memory
+    if os.getenv("PINECONE_API_KEY"):
+        return "pinecone"
     if os.getenv("OPENAI_API_KEY"):
         return "openai"
-    # Use local HuggingFace if torch is available, else fall back to API
-    if _torch_available():
-        return "huggingface"
-    logger.info("PyTorch not available — using HuggingFace Inference API for embeddings.")
-    return "huggingface_api"
+    if os.getenv("GOOGLE_API_KEY"):
+        return "google"
+    return "huggingface"
 
 
-# ─── Lightweight HuggingFace API Embeddings (no PyTorch needed) ───────────────
-class _HuggingFaceAPIEmbeddings:
-    """
-    Minimal LangChain-compatible embeddings class that calls the free
-    HuggingFace Inference API.  Uses the same model (all-MiniLM-L6-v2)
-    as the local provider, so Pinecone vectors are fully compatible.
-
-    Requires only the `requests` library (already a Flask dependency).
-    """
-
-    def __init__(self, api_url: str = _HF_API_URL, api_token: str | None = None):
-        self._api_url = api_url
-        self._headers = {"Content-Type": "application/json"}
-        token = api_token or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
-        if token:
-            self._headers["Authorization"] = f"Bearer {token}"
-
-    def _call_api(self, texts: list[str]) -> list[list[float]]:
-        if "Authorization" not in self._headers:
-            raise ValueError("HF_TOKEN or HUGGINGFACEHUB_API_TOKEN environment variable is required to use the HuggingFace Inference API.")
-        import requests
-        import logging
-        logger = logging.getLogger(__name__)
-
-        # Filter out empty or whitespace-only strings which can cause 400 errors
-        # We keep a placeholder for empty strings to maintain list length
-        processed_texts = [t if (t and t.strip()) else " " for t in texts]
-
-        payload = {
-            "inputs": processed_texts,
-            "options": {"wait_for_model": True},
-        }
-        
-        try:
-            resp = requests.post(self._api_url, json=payload, headers=self._headers, timeout=60)
-            if resp.status_code == 503:
-                # Model is loading — retry once
-                import time
-                time.sleep(5)
-                resp = requests.post(self._api_url, json=payload, headers=self._headers, timeout=60)
-            
-            if resp.status_code != 200:
-                logger.error(f"HF API Error {resp.status_code}: {resp.text}")
-                resp.raise_for_status()
-                
-            data = resp.json()
-        except Exception as e:
-            logger.error(f"Exception calling HF API: {e}")
-            raise e
-
-        # API returns list of lists of floats
-        if isinstance(data, list) and len(data) > 0:
-            # Might be nested: [[float, ...], ...] or [[[float, ...]]]
-            if isinstance(data[0], list) and isinstance(data[0][0], float):
-                return data  # Already flat: [[float, ...], [float, ...]]
-            elif isinstance(data[0], list) and isinstance(data[0][0], list):
-                # Token-level embeddings — mean-pool to get sentence embedding
-                import statistics
-                return [
-                    [statistics.mean(token_vals) for token_vals in zip(*token_embeddings)]
-                    for token_embeddings in data
-                ]
-        raise ValueError(f"Unexpected HF API response format: {type(data)}")
-
-    def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        """Embed a list of documents."""
-        if not texts:
-            return []
-        # HF Inference API has a limit; batch in chunks of 32
-        all_embeddings = []
-        for i in range(0, len(texts), 32):
-            batch = texts[i : i + 32]
-            all_embeddings.extend(self._call_api(batch))
-        return all_embeddings
-
-    def embed_query(self, text: str) -> list[float]:
-        """Embed a single query string."""
-        return self._call_api([text])[0]
+def _resolve_model(provider: str) -> str:
+    """Return the model name: user override via EMBED_MODEL env, or default."""
+    global EMBED_MODEL
+    user_model = os.getenv("EMBED_MODEL", "").strip()
+    EMBED_MODEL = user_model or DEFAULT_MODELS.get(provider, "")
+    return EMBED_MODEL
 
 
 def get_embeddings():
@@ -169,15 +98,24 @@ def get_embeddings():
             api_key=os.getenv("OPENAI_API_KEY"),
         )
 
+    elif provider == "google":
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+        return GoogleGenerativeAIEmbeddings(
+            model=model,
+            google_api_key=os.getenv("GOOGLE_API_KEY"),
+        )
+
     elif provider == "huggingface":
-        # Suppress HuggingFace Hub unauthenticated warning
         os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
         try:
             from langchain_huggingface import HuggingFaceEmbeddings
+
             logger.info(
-                "Loading HuggingFace embedding model 'all-MiniLM-L6-v2' locally "
-                "(this may take a moment on first run)..."
+                "Loading HuggingFace embedding model '%s' "
+                "(this may take a moment on first run)...",
+                model,
             )
             embeddings = HuggingFaceEmbeddings(
                 model_name=model,
@@ -187,21 +125,17 @@ def get_embeddings():
             logger.info("HuggingFace embedding model loaded successfully.")
             return embeddings
         except Exception as e:
-            logger.warning(
-                f"Local HuggingFace embeddings failed ({e}). "
-                "Falling back to HuggingFace Inference API..."
-            )
-            # Fall through to API provider
-            return _HuggingFaceAPIEmbeddings()
-
-    elif provider == "huggingface_api":
-        logger.info("Using HuggingFace Inference API for embeddings (no PyTorch required).")
-        return _HuggingFaceAPIEmbeddings()
+            raise RuntimeError(
+                f"Failed to load HuggingFace embedding model: {e}. "
+                "This often means the server ran out of memory or couldn't "
+                "download the model. Consider switching to a cloud provider: "
+                "set EMBEDDING_PROVIDER=pinecone in your environment."
+            ) from e
 
     else:
         raise ValueError(
             f"Unknown EMBEDDING_PROVIDER: {provider!r}. "
-            "Choose from: openai, huggingface, huggingface_api"
+            "Choose from: pinecone, openai, google, huggingface"
         )
 
 

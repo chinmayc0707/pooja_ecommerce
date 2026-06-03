@@ -110,23 +110,8 @@ def _catalog_docs_from_supabase(question: str, limit: int = 6) -> list[Document]
 
 
 def _retrieve_docs(question: str) -> list[Document]:
-    render_runtime = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
-    embedding_provider = os.environ.get("EMBEDDING_PROVIDER", "").lower()
-    openai_embeddings_available = bool(os.environ.get("OPENAI_API_KEY"))
-    local_embeddings_allowed = os.environ.get("ALLOW_LOCAL_EMBEDDINGS", "").lower() in {"1", "true", "yes", "on"}
-    hf_api_embeddings = embedding_provider == "huggingface_api"
-    pinecone_safe = (
-        os.environ.get("PINECONE_API_KEY")
-        and (
-            openai_embeddings_available
-            or embedding_provider == "openai"
-            or hf_api_embeddings
-            or local_embeddings_allowed
-            or not render_runtime
-        )
-    )
-
-    if pinecone_safe:
+    """Retrieve relevant product docs via Pinecone, with Supabase fallback."""
+    if os.environ.get("PINECONE_API_KEY"):
         try:
             vectorstore = _get_vectorstore()
             retriever = vectorstore.as_retriever(
@@ -139,10 +124,9 @@ def _retrieve_docs(question: str) -> list[Document]:
             logger.warning("Pinecone returned no matching documents; falling back to Supabase catalog.")
         except Exception as exc:
             logger.warning("Pinecone retrieval failed; falling back to Supabase catalog: %s", exc)
-    elif os.environ.get("PINECONE_API_KEY"):
-        logger.warning("Skipping Pinecone retrieval to avoid loading local embeddings on Render.")
 
     return _catalog_docs_from_supabase(question)
+
 
 
 # ─── Pluggable LLM factory ────────────────────────────────────────────────────
