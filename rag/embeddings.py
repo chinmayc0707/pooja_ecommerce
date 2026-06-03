@@ -76,6 +76,46 @@ def _resolve_model(provider: str) -> str:
     return EMBED_MODEL
 
 
+# ─── Custom Pinecone Inference Embeddings (SDK-direct, no langchain wrapper) ──
+class _PineconeInferenceEmbeddings:
+    """
+    LangChain-compatible embeddings class that calls the Pinecone Inference
+    API directly via the pinecone SDK. Avoids version mismatches with the
+    langchain-pinecone PineconeEmbeddings wrapper.
+    """
+
+    def __init__(self, model: str = "multilingual-e5-large", api_key: str | None = None):
+        from pinecone import Pinecone
+
+        self._model = model
+        self._pc = Pinecone(api_key=api_key)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Embed a list of documents."""
+        if not texts:
+            return []
+        all_embeddings = []
+        # Batch in chunks of 96 (Pinecone inference limit)
+        for i in range(0, len(texts), 96):
+            batch = texts[i : i + 96]
+            result = self._pc.inference.embed(
+                model=self._model,
+                inputs=batch,
+                parameters={"input_type": "passage"},
+            )
+            all_embeddings.extend([item.values for item in result.data])
+        return all_embeddings
+
+    def embed_query(self, text: str) -> list[float]:
+        """Embed a single query string."""
+        result = self._pc.inference.embed(
+            model=self._model,
+            inputs=[text],
+            parameters={"input_type": "query"},
+        )
+        return result.data[0].values
+
+
 def get_embeddings():
     """Return a LangChain-compatible embeddings object for the configured provider."""
     provider = get_embedding_provider()
@@ -83,11 +123,9 @@ def get_embeddings():
     logger.info("Embedding provider: %s | model: %s", provider, model)
 
     if provider == "pinecone":
-        from langchain_pinecone import PineconeEmbeddings
-
-        return PineconeEmbeddings(
+        return _PineconeInferenceEmbeddings(
             model=model,
-            pinecone_api_key=os.getenv("PINECONE_API_KEY"),
+            api_key=os.getenv("PINECONE_API_KEY"),
         )
 
     elif provider == "openai":
