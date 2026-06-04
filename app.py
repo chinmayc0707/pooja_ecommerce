@@ -84,6 +84,17 @@ class Setting(db.Model):
     key = db.Column(db.String(50), unique=True, nullable=False)
     value = db.Column(db.String(500), nullable=False)
 
+class CartItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=True)       # logged-in user
+    session_id = db.Column(db.String(100), nullable=True) # guest fallback
+    product_id = db.Column(db.Integer, nullable=False)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'session_id', 'product_id', name='uq_cart_item'),
+    )
 
 @dataclass
 class AccountUser:
@@ -780,8 +791,8 @@ def init_db():
     global _database_initialized
     with app.app_context():
         os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-        if _use_sqlalchemy_accounts() or _use_sqlalchemy_data():
-            db.create_all()
+        # Always create tables — CartItem is always stored locally
+        db.create_all()
         if _use_sqlalchemy_accounts():
             _ensure_user_schema()
         _ensure_admin_account()
@@ -920,8 +931,7 @@ def index():
     if hero_slides_by_category:
         hero_initial_image = hero_slides_by_category[0]['slides'][0]['image']
     
-    cart = session.get('cart', [])
-    cart_count = len(cart)
+    cart_count = _get_cart_count()
     
     return render_template(
         'index.html',
@@ -936,71 +946,126 @@ def product_detail(product_id):
     product = _get_product_or_404(product_id)
     return render_template('product_detail.html', product=product)
 
+# ─── Cart helpers (DB-backed) ──────────────────────────────────────────────────
+def _get_cart_identity():
+    """Return (user_id, session_id) for the current visitor."""
+    user = get_current_user()
+    if user:
+        return user.id, None
+    # Guest — use a stable session id
+    sid = session.get('_cart_sid')
+    if not sid:
+        import uuid
+        sid = str(uuid.uuid4())
+        session['_cart_sid'] = sid
+    return None, sid
+
+
+def _cart_filter():
+    """Return SQLAlchemy filter kwargs for the current user's cart."""
+    user_id, session_id = _get_cart_identity()
+    if user_id:
+        return {'user_id': user_id}
+    return {'session_id': session_id}
+
+
+def _get_cart_count():
+    """Return total quantity of items in the current user's cart."""
+    filt = _cart_filter()
+    total = db.session.query(db.func.coalesce(db.func.sum(CartItem.quantity), 0)).filter_by(**filt).scalar()
+    return int(total)
+
+
+def _merge_guest_cart_to_user(guest_session_id, user_id):
+    """Merge guest cart items into the logged-in user's cart."""
+    guest_items = CartItem.query.filter_by(session_id=guest_session_id).all()
+    for item in guest_items:
+        existing = CartItem.query.filter_by(user_id=user_id, session_id=None, product_id=item.product_id).first()
+        if existing:
+            existing.quantity += item.quantity
+        else:
+            item.user_id = user_id
+            item.session_id = None
+            db.session.add(item)
+            continue
+        db.session.delete(item)
+    db.session.commit()
+
+
 @app.route('/add_to_cart/<int:product_id>', methods=['POST'])
 def add_to_cart(product_id):
-    cart = session.get('cart', [])
-    cart.append(product_id)
-    session['cart'] = cart
-    session.modified = True
-    return jsonify({"success": True, "cart_count": len(cart)})
+    user_id, session_id = _get_cart_identity()
+    item = CartItem.query.filter_by(user_id=user_id, session_id=session_id, product_id=product_id).first()
+    if item:
+        item.quantity += 1
+    else:
+        item = CartItem(user_id=user_id, session_id=session_id, product_id=product_id, quantity=1)
+        db.session.add(item)
+    db.session.commit()
+    return jsonify({"success": True, "cart_count": _get_cart_count()})
 
 
 @app.route('/api/cart_count')
 def api_cart_count():
-    cart = session.get('cart', [])
-    return jsonify({"cart_count": len(cart)})
+    return jsonify({"cart_count": _get_cart_count()})
 
 @app.route('/cart')
 def view_cart():
-    cart_ids = session.get('cart', [])
-    products = _get_products_by_ids(cart_ids)
-    
+    filt = _cart_filter()
+    cart_rows = CartItem.query.filter_by(**filt).all()
+    product_ids = [row.product_id for row in cart_rows]
+    products = _get_products_by_ids(product_ids)
+    product_map = {p.id: p for p in products}
+
     cart_items = []
-    for p in products:
-        count = cart_ids.count(p.id)
+    for row in cart_rows:
+        p = product_map.get(row.product_id)
+        if not p:
+            continue
         cart_items.append({
             'product': p,
-            'quantity': count,
-            'subtotal': p.price * count
+            'quantity': row.quantity,
+            'subtotal': p.price * row.quantity
         })
-    
+
     total = sum(item['subtotal'] for item in cart_items)
     upi_id = _get_setting_value('upi_id')
     return render_template('cart.html', items=cart_items, total=total, upi_id=upi_id)
 
 @app.route('/remove_from_cart/<int:product_id>')
 def remove_from_cart(product_id):
-    if 'cart' in session:
-        cart = session['cart']
-        # remove all occurrences
-        cart = [item for item in cart if item != product_id]
-        session['cart'] = cart
-        session.modified = True
+    filt = _cart_filter()
+    CartItem.query.filter_by(product_id=product_id, **filt).delete()
+    db.session.commit()
     return redirect(url_for('view_cart'))
 
 @app.route('/increase_quantity/<int:product_id>')
 def increase_quantity(product_id):
-    if 'cart' in session:
-        cart = session['cart']
-        cart.append(product_id)
-        session['cart'] = cart
-        session.modified = True
+    filt = _cart_filter()
+    item = CartItem.query.filter_by(product_id=product_id, **filt).first()
+    if item:
+        item.quantity += 1
+        db.session.commit()
     return redirect(url_for('view_cart'))
 
 @app.route('/decrease_quantity/<int:product_id>')
 def decrease_quantity(product_id):
-    if 'cart' in session:
-        cart = session['cart']
-        if product_id in cart:
-            cart.remove(product_id)
-            session['cart'] = cart
-            session.modified = True
+    filt = _cart_filter()
+    item = CartItem.query.filter_by(product_id=product_id, **filt).first()
+    if item:
+        if item.quantity <= 1:
+            db.session.delete(item)
+        else:
+            item.quantity -= 1
+        db.session.commit()
     return redirect(url_for('view_cart'))
 
 
 @app.route('/clear_cart')
 def clear_cart():
-    session.pop('cart', None)
+    filt = _cart_filter()
+    CartItem.query.filter_by(**filt).delete()
+    db.session.commit()
     return redirect(url_for('view_cart'))
 
 
@@ -1030,6 +1095,12 @@ def login():
             app.logger.error(f'Supabase login failed: {exc}')
             return render_template('login.html', error=f"Login failed: {exc}"), 500
         if user:
+            # Merge guest cart into user's cart before login
+            guest_sid = session.get('_cart_sid')
+            if guest_sid:
+                _merge_guest_cart_to_user(guest_sid, user.id)
+                session.pop('_cart_sid', None)
+
             token = jwt.encode({
                 'user_id': user.id,
                 'user': user.username,
