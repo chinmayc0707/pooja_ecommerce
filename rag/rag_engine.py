@@ -21,6 +21,9 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
+from langchain_core.messages import AIMessageChunk
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 logger = logging.getLogger(__name__)
@@ -227,6 +230,28 @@ def _extract_cited_ids(text: str) -> list[int]:
     return []
 
 
+
+@tool
+def add_to_cart_tool(product_id: int) -> str:
+    """Add a specific product to the user's shopping cart. Call this when the user explicitly asks to buy or add a product to their cart. You must provide the exact product_id."""
+    from app import db, CartItem, _get_cart_identity, app as flask_app
+    try:
+        # Since this tool is invoked by LangChain inside a Flask request context,
+        # we can access flask globals like session.
+        # But just to be safe if the context is lost (it shouldn't be):
+        user_id, session_id = _get_cart_identity()
+        item = CartItem.query.filter_by(user_id=user_id, session_id=session_id, product_id=product_id).first()
+        if item:
+            item.quantity += 1
+        else:
+            item = CartItem(user_id=user_id, session_id=session_id, product_id=product_id, quantity=1)
+            db.session.add(item)
+        db.session.commit()
+        return f"Successfully added product ID {product_id} to the cart. Tell the user it has been added."
+    except Exception as e:
+        logger.error(f"Error adding to cart via AI: {e}")
+        return f"Failed to add product to cart: {str(e)}"
+
 # ─── Agentic system prompt ────────────────────────────────────────────────────
 SYSTEM_PROMPT = """You are a knowledgeable and warm shopping assistant for Pooja Ecommerce, \
 an online store selling authentic Indian devotional and ritual products.
@@ -240,6 +265,7 @@ Please browse our full collection on the homepage."
 4. Always mention the exact product name and price (as shown in the context) when recommending.
 5. Be warm, respectful, and concise — like a knowledgeable store assistant.
 6. Do not answer questions unrelated to the store or its products.
+7. If the user asks to add an item to their cart, buy an item, or purchase it, use the `add_to_cart_tool` with the correct `product_id` from the CONTEXT.
 
 CONTEXT (retrieved products from our catalog):
 {context}"""
@@ -294,14 +320,20 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
         "chat_history": lc_history,
     }
 
-    # 4. Call LLM (plain text — NO tool calling / structured output)
+    # 4. Call LLM (using create_react_agent to support tools)
     llm = _get_llm()
-    chain = prompt | llm
-    result = chain.invoke(invoke_input)
+    agent = create_react_agent(llm, tools=[add_to_cart_tool], state_modifier=prompt)
 
-    raw_answer = (
-        result.content if hasattr(result, "content") else str(result)
-    )
+    # create_react_agent manages the prompt template internally using the state_modifier,
+    # but we can pass our pre-rendered messages instead.
+
+    # Actually, simpler: prompt template evaluates to messages. Let's just use it:
+    messages = prompt.invoke(invoke_input).to_messages()
+
+    result = agent.invoke({"messages": messages})
+
+    # The last message is the AI's final answer
+    raw_answer = result["messages"][-1].content if result.get("messages") else ""
 
     # 5. Clean up answer (strip JSON leaks) and extract citations
     answer = _clean_answer(raw_answer)
@@ -375,13 +407,24 @@ def ask_stream(question: str, chat_history: list[dict] | None = None):
 
     # 4. Stream LLM tokens
     llm = _get_llm()
-    chain = prompt | llm
+    agent = create_react_agent(llm, tools=[add_to_cart_tool])
+    messages = prompt.invoke(invoke_input).to_messages()
+
     full_raw = ""
-    for chunk in chain.stream(invoke_input):
-        token = chunk.content if hasattr(chunk, "content") else str(chunk)
-        if token:
-            full_raw += token
-            yield {"token": token}
+    for msg, metadata in agent.stream({"messages": messages}, stream_mode="messages"):
+        # We only stream the final assistant message chunks back to the user, not tool calls
+        if isinstance(msg, AIMessageChunk) and msg.content:
+            token = msg.content
+            if isinstance(token, list):
+                # Sometimes content is a list of dicts (e.g. Claude)
+                token_str = "".join([t.get("text", "") for t in token if isinstance(t, dict) and "text" in t])
+                if not token_str and isinstance(token, str):
+                     token_str = token
+                token = token_str
+            if token:
+                full_raw += token
+                yield {"token": token}
+
 
     # 5. Compute sources from accumulated answer
     answer = _clean_answer(full_raw)
