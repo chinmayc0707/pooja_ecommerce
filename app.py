@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from functools import wraps
 from urllib import error, parse, request as urlrequest
 
-from flask import Flask, render_template, request, redirect, url_for, make_response, flash, session, jsonify, abort, g
+from flask import Flask, render_template, request, redirect, url_for, make_response, flash, session, jsonify, abort, g, Response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 from werkzeug.utils import secure_filename
@@ -1279,6 +1279,56 @@ def chat():
     except Exception as e:
         app.logger.error(f'RAG chat error ({type(e).__name__}): {e}')
         return jsonify({'error': f'AI assistant error ({type(e).__name__}): {e}'}), 500
+
+
+# ─── Chat streaming (SSE) endpoint ─────────────────────────────────────────────
+@app.route('/chat/stream', methods=['POST'])
+def chat_stream():
+    """
+    POST /chat/stream
+    Body: { "question": str, "history": [{"role": "user"|"assistant", "content": str}] }
+    Returns: Server-Sent Events stream
+      data: {"token": "..."}
+      data: {"done": true, "sources": [...], "full_answer": "..."}
+    """
+    missing_config = _missing_ai_config()
+    if missing_config:
+        return _json_error(
+            f"AI assistant is not configured. Missing: {', '.join(missing_config)}.",
+            503,
+        )
+
+    data = request.get_json(force=True)
+    question = (data.get('question') or '').strip()
+    history = data.get('history', [])
+
+    if not question:
+        return jsonify({'error': 'No question provided.'}), 400
+
+    def generate():
+        try:
+            from rag.rag_engine import ask_stream
+            for event in ask_stream(question, history):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except ImportError as e:
+            app.logger.error(f'RAG import error: {e}')
+            yield f"data: {json.dumps({'error': f'AI dependency missing: {e}'})}\n\n"
+        except MemoryError:
+            app.logger.error('RAG out of memory loading model')
+            yield f"data: {json.dumps({'error': 'Server ran out of memory.'})}\n\n"
+        except Exception as e:
+            app.logger.error(f'RAG stream error ({type(e).__name__}): {e}')
+            yield f"data: {json.dumps({'error': f'AI assistant error: {e}'})}\n\n"
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        },
+    )
 
 
 # ─── Chat health check (diagnose Render issues) ───────────────────────────────

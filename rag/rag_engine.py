@@ -332,3 +332,77 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
 
     return {"answer": answer, "sources": sources}
 
+
+def ask_stream(question: str, chat_history: list[dict] | None = None):
+    """
+    Streaming version of ask(). Yields dicts:
+      {"token": str}     — for each LLM token
+      {"done": True, "sources": [...], "full_answer": str} — final event
+    """
+    chat_history = chat_history or []
+
+    # 1. Retrieve relevant products from Pinecone, with Supabase catalog fallback.
+    docs = _retrieve_docs(question)
+
+    # 2. Build a fast ID -> metadata lookup from retrieved docs
+    doc_lookup: dict[int, dict] = {}
+    for doc in docs:
+        pid = doc.metadata.get("product_id")
+        if pid is not None:
+            doc_lookup[int(pid)] = doc.metadata
+
+    context = _format_docs(docs)
+
+    # 3. Build prompt (plain text, no tool calling)
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT),
+        MessagesPlaceholder("chat_history"),
+        ("human", "{input}"),
+    ])
+
+    lc_history = []
+    for msg in chat_history:
+        if msg.get("role") == "user":
+            lc_history.append(HumanMessage(content=msg["content"]))
+        elif msg.get("role") == "assistant":
+            lc_history.append(AIMessage(content=msg["content"]))
+
+    invoke_input = {
+        "context": context,
+        "input": question,
+        "chat_history": lc_history,
+    }
+
+    # 4. Stream LLM tokens
+    llm = _get_llm()
+    chain = prompt | llm
+    full_raw = ""
+    for chunk in chain.stream(invoke_input):
+        token = chunk.content if hasattr(chunk, "content") else str(chunk)
+        if token:
+            full_raw += token
+            yield {"token": token}
+
+    # 5. Compute sources from accumulated answer
+    answer = _clean_answer(full_raw)
+    cited_ids = _extract_cited_ids(full_raw)
+    cited_ids = [pid for pid in cited_ids if pid in doc_lookup]
+
+    if not cited_ids:
+        cited_ids = [
+            pid for pid, meta in doc_lookup.items()
+            if meta.get("name", "").lower() in answer.lower()
+        ]
+
+    sources = []
+    for pid in cited_ids:
+        meta = doc_lookup.get(pid, {})
+        sources.append({
+            "product_id": pid,
+            "name": meta.get("name", ""),
+            "price": meta.get("price", 0),
+            "category": meta.get("category", ""),
+            "url": meta.get("url", f"/product/{pid}"),
+        })
+
+    yield {"done": True, "sources": sources, "full_answer": answer}
