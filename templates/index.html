@@ -773,34 +773,100 @@
             showTyping();
 
             try {
-                const res = await fetch('/chat', {
+                const res = await fetch('/chat/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ question, history: chatHistory.slice(-10) })
                 });
-                const raw = await res.text();
-                let data = {};
-                try {
-                    data = raw ? JSON.parse(raw) : {};
-                } catch (parseError) {
-                    data = {
-                        error: `AI service returned an unexpected response (${res.status}). Please check the server logs.`
-                    };
-                }
-                removeTyping();
 
-                if (!res.ok || data.error) {
-                    appendMessage('bot', '⚠️ ' + (data.error || 'Something went wrong. Please try again.'));
-                } else if (data.answer) {
-                    appendMessage('bot', data.answer);
-                    chatHistory.push({ role: 'assistant', content: data.answer });
-                    appendSources(data.sources);
-                } else {
-                    appendMessage('bot', '⚠️ The AI assistant returned an empty response. Please try again.');
+                if (!res.ok) {
+                    // Non-streaming error response
+                    removeTyping();
+                    let errMsg = 'Something went wrong. Please try again.';
+                    try {
+                        const errData = await res.json();
+                        errMsg = errData.error || errMsg;
+                    } catch (_) {}
+                    appendMessage('bot', '⚠️ ' + errMsg);
+                    return;
                 }
+
+                // Replace typing indicator with an empty bot bubble for streaming
+                removeTyping();
+                const msgs = document.getElementById('chat-messages');
+                const bubble = document.createElement('div');
+                bubble.className = 'msg-bubble bot';
+                bubble.innerHTML = '<span class="streaming-cursor">▌</span>';
+                msgs.appendChild(bubble);
+                scrollToBottom();
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let accumulated = '';
+                let sseBuffer = '';
+                let sources = [];
+
+                function renderStreamingMarkdown(text) {
+                    const rawHtml = marked.parse(text + ' ▌');
+                    bubble.innerHTML = DOMPurify.sanitize(rawHtml, {
+                        ADD_ATTR: ['target'],
+                        FORBID_TAGS: ['script', 'style'],
+                    });
+                    scrollToBottom();
+                }
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    sseBuffer += decoder.decode(value, { stream: true });
+                    const lines = sseBuffer.split('\n');
+                    // Keep the last potentially incomplete line in the buffer
+                    sseBuffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const payload = line.slice(6);
+                        let event;
+                        try { event = JSON.parse(payload); } catch (_) { continue; }
+
+                        if (event.error) {
+                            accumulated = '⚠️ ' + event.error;
+                            bubble.textContent = accumulated;
+                            scrollToBottom();
+                            continue;
+                        }
+
+                        if (event.token) {
+                            accumulated += event.token;
+                            // Render markdown live with cursor
+                            renderStreamingMarkdown(accumulated);
+                        }
+
+                        if (event.done) {
+                            sources = event.sources || [];
+                            if (event.full_answer) {
+                                accumulated = event.full_answer;
+                            }
+                        }
+                    }
+                }
+
+                // Streaming complete — final render without cursor
+                const cleanedText = extractAnswerFromJson(accumulated);
+                const rawHtml = marked.parse(cleanedText);
+                bubble.innerHTML = DOMPurify.sanitize(rawHtml, {
+                    ADD_ATTR: ['target'],
+                    FORBID_TAGS: ['script', 'style'],
+                });
+                scrollToBottom();
+
+                chatHistory.push({ role: 'assistant', content: cleanedText });
+                appendSources(sources);
+
             } catch (e) {
                 removeTyping();
-                appendMessage('bot', 'Could not reach the AI service. Please try again.');
+                appendMessage('bot', '⚠️ Could not reach the AI service. Please try again.');
             } finally {
                 isSending = false;
                 sendBtn.disabled = false;

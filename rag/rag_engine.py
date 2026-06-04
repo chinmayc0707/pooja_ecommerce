@@ -17,32 +17,14 @@ via LLM_PROVIDER env var, and pluggable embeddings via EMBEDDING_PROVIDER.
 import os
 import logging
 import re
-from typing import List
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 logger = logging.getLogger(__name__)
 
-
-# ─── Structured output schema ─────────────────────────────────────────────────
-class RAGResponse(BaseModel):
-    """Structured response the LLM must produce."""
-    answer: str = Field(
-        description="Your helpful, warm response to the user's question."
-    )
-    cited_product_ids: List[int] = Field(
-        default_factory=list,
-        description=(
-            "List of product IDs (integers) that you explicitly recommended or "
-            "mentioned by name in your answer. "
-            "ONLY include IDs of products from the provided context that you "
-            "actually referenced. Leave empty if no products matched the question. When mentioning products use tables for better UX"
-        )
-    )
 
 
 # ─── Pinecone vector store (lazy singleton) ───────────────────────────────────
@@ -110,23 +92,8 @@ def _catalog_docs_from_supabase(question: str, limit: int = 6) -> list[Document]
 
 
 def _retrieve_docs(question: str) -> list[Document]:
-    render_runtime = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
-    embedding_provider = os.environ.get("EMBEDDING_PROVIDER", "").lower()
-    openai_embeddings_available = bool(os.environ.get("OPENAI_API_KEY"))
-    local_embeddings_allowed = os.environ.get("ALLOW_LOCAL_EMBEDDINGS", "").lower() in {"1", "true", "yes", "on"}
-    hf_api_embeddings = embedding_provider == "huggingface_api"
-    pinecone_safe = (
-        os.environ.get("PINECONE_API_KEY")
-        and (
-            openai_embeddings_available
-            or embedding_provider == "openai"
-            or hf_api_embeddings
-            or local_embeddings_allowed
-            or not render_runtime
-        )
-    )
-
-    if pinecone_safe:
+    """Retrieve relevant product docs via Pinecone, with Supabase fallback."""
+    if os.environ.get("PINECONE_API_KEY"):
         try:
             vectorstore = _get_vectorstore()
             retriever = vectorstore.as_retriever(
@@ -139,10 +106,9 @@ def _retrieve_docs(question: str) -> list[Document]:
             logger.warning("Pinecone returned no matching documents; falling back to Supabase catalog.")
         except Exception as exc:
             logger.warning("Pinecone retrieval failed; falling back to Supabase catalog: %s", exc)
-    elif os.environ.get("PINECONE_API_KEY"):
-        logger.warning("Skipping Pinecone retrieval to avoid loading local embeddings on Render.")
 
     return _catalog_docs_from_supabase(question)
+
 
 
 # ─── Pluggable LLM factory ────────────────────────────────────────────────────
@@ -199,7 +165,7 @@ def _get_llm():
 
 
 # ─── Format retrieved docs for the prompt ────────────────────────────────────
-def _format_docs(docs: List[Document]) -> str:
+def _format_docs(docs: list[Document]) -> str:
     """Render retrieved docs into a readable block with IDs clearly labelled."""
     if not docs:
         return "No matching products found in catalog."
@@ -215,8 +181,7 @@ def _format_docs(docs: List[Document]) -> str:
 
 def _clean_answer(text: str) -> str:
     """
-    Safety net: if the LLM returned raw JSON instead of plain text
-    (e.g. fallback path with a model that outputs structured JSON as text),
+    Safety net: if the LLM returned raw JSON instead of plain text,
     extract just the 'answer' field so the user never sees raw JSON.
     """
     import json
@@ -234,6 +199,34 @@ def _clean_answer(text: str) -> str:
     return text
 
 
+def _extract_cited_ids(text: str) -> list[int]:
+    """
+    Try to extract cited_product_ids from the LLM's text response.
+    Handles JSON blocks, fenced JSON, or inline JSON fragments.
+    """
+    import json
+    text = text.strip()
+    # Strip ```json ... ``` fence if present
+    fenced = re.match(r'^```(?:json)?\s*([\s\S]+?)\s*```$', text)
+    candidate = fenced.group(1) if fenced else text
+    if candidate.lstrip().startswith('{'):
+        try:
+            data = json.loads(candidate)
+            if isinstance(data, dict) and 'cited_product_ids' in data:
+                return [int(x) for x in data['cited_product_ids']]
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+
+    # Fallback: look for cited_product_ids anywhere in the text
+    match = re.search(r'cited_product_ids["\s:]*\[([^\]]*)\]', text)
+    if match:
+        try:
+            return [int(x.strip()) for x in match.group(1).split(',') if x.strip()]
+        except (ValueError, TypeError):
+            pass
+    return []
+
+
 # ─── Agentic system prompt ────────────────────────────────────────────────────
 SYSTEM_PROMPT = """You are a knowledgeable and warm shopping assistant for Pooja Ecommerce, \
 an online store selling authentic Indian devotional and ritual products.
@@ -248,12 +241,6 @@ Please browse our full collection on the homepage."
 5. Be warm, respectful, and concise — like a knowledgeable store assistant.
 6. Do not answer questions unrelated to the store or its products.
 
-CITATION RULE (important):
-After forming your answer, populate `cited_product_ids` with ONLY the integer IDs \
-of products you actually mentioned or recommended in your answer text. \
-If you recommended two products, include exactly those two IDs. \
-Do not include IDs of products you retrieved but did not mention.
-
 CONTEXT (retrieved products from our catalog):
 {context}"""
 
@@ -261,7 +248,7 @@ CONTEXT (retrieved products from our catalog):
 # ─── Public API ───────────────────────────────────────────────────────────────
 def ask(question: str, chat_history: list[dict] | None = None) -> dict:
     """
-    Run the agentic RAG pipeline.
+    Run the RAG pipeline.
 
     Args:
         question:     The user's question string.
@@ -271,7 +258,6 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
         {
             "answer": str,
             "sources": [{"product_id", "name", "price", "category", "url"}, ...]
-            — only products the LLM explicitly chose to cite.
         }
     """
     chat_history = chat_history or []
@@ -288,7 +274,7 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
 
     context = _format_docs(docs)
 
-    # 3. Build prompt
+    # 3. Build prompt (plain text, no tool calling)
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
         MessagesPlaceholder("chat_history"),
@@ -308,41 +294,31 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
         "chat_history": lc_history,
     }
 
-    # 4. Try structured output (tool calling) so LLM picks its own citations
+    # 4. Call LLM (plain text — NO tool calling / structured output)
     llm = _get_llm()
-    cited_ids: list[int] = []
-    answer: str = ""
+    chain = prompt | llm
+    result = chain.invoke(invoke_input)
 
-    try:
-        structured_llm = llm.with_structured_output(RAGResponse)
-        chain = prompt | structured_llm
-        result: RAGResponse = chain.invoke(invoke_input)
+    raw_answer = (
+        result.content if hasattr(result, "content") else str(result)
+    )
 
-        answer = result.answer
-        # Filter to only IDs that were actually in the retrieved docs
-        cited_ids = [
-            int(pid) for pid in result.cited_product_ids
-            if int(pid) in doc_lookup
-        ]
+    # 5. Clean up answer (strip JSON leaks) and extract citations
+    answer = _clean_answer(raw_answer)
 
-    except Exception:
-        # Fallback for models that don't support tool calling (e.g. some OpenRouter free tiers)
-        plain_chain = prompt | llm
-        plain_result = plain_chain.invoke(invoke_input)
-        raw_answer = (
-            plain_result.content
-            if hasattr(plain_result, "content")
-            else str(plain_result)
-        )
-        # Strip raw JSON leaks before sending to frontend
-        answer = _clean_answer(raw_answer)
-        # Heuristic fallback: include products whose name appears in the answer
+    # Try to get cited IDs from structured JSON in the response
+    cited_ids = _extract_cited_ids(raw_answer)
+    # Filter to only IDs that were actually in the retrieved docs
+    cited_ids = [pid for pid in cited_ids if pid in doc_lookup]
+
+    # If no explicit citations, heuristic: match product names in the answer
+    if not cited_ids:
         cited_ids = [
             pid for pid, meta in doc_lookup.items()
             if meta.get("name", "").lower() in answer.lower()
         ]
 
-    # 5. Build sources from ONLY the IDs the LLM chose to cite
+    # 6. Build sources from ONLY the IDs the LLM chose to cite
     sources = []
     for pid in cited_ids:
         meta = doc_lookup.get(pid, {})
@@ -355,3 +331,78 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
         })
 
     return {"answer": answer, "sources": sources}
+
+
+def ask_stream(question: str, chat_history: list[dict] | None = None):
+    """
+    Streaming version of ask(). Yields dicts:
+      {"token": str}     — for each LLM token
+      {"done": True, "sources": [...], "full_answer": str} — final event
+    """
+    chat_history = chat_history or []
+
+    # 1. Retrieve relevant products from Pinecone, with Supabase catalog fallback.
+    docs = _retrieve_docs(question)
+
+    # 2. Build a fast ID -> metadata lookup from retrieved docs
+    doc_lookup: dict[int, dict] = {}
+    for doc in docs:
+        pid = doc.metadata.get("product_id")
+        if pid is not None:
+            doc_lookup[int(pid)] = doc.metadata
+
+    context = _format_docs(docs)
+
+    # 3. Build prompt (plain text, no tool calling)
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT),
+        MessagesPlaceholder("chat_history"),
+        ("human", "{input}"),
+    ])
+
+    lc_history = []
+    for msg in chat_history:
+        if msg.get("role") == "user":
+            lc_history.append(HumanMessage(content=msg["content"]))
+        elif msg.get("role") == "assistant":
+            lc_history.append(AIMessage(content=msg["content"]))
+
+    invoke_input = {
+        "context": context,
+        "input": question,
+        "chat_history": lc_history,
+    }
+
+    # 4. Stream LLM tokens
+    llm = _get_llm()
+    chain = prompt | llm
+    full_raw = ""
+    for chunk in chain.stream(invoke_input):
+        token = chunk.content if hasattr(chunk, "content") else str(chunk)
+        if token:
+            full_raw += token
+            yield {"token": token}
+
+    # 5. Compute sources from accumulated answer
+    answer = _clean_answer(full_raw)
+    cited_ids = _extract_cited_ids(full_raw)
+    cited_ids = [pid for pid in cited_ids if pid in doc_lookup]
+
+    if not cited_ids:
+        cited_ids = [
+            pid for pid, meta in doc_lookup.items()
+            if meta.get("name", "").lower() in answer.lower()
+        ]
+
+    sources = []
+    for pid in cited_ids:
+        meta = doc_lookup.get(pid, {})
+        sources.append({
+            "product_id": pid,
+            "name": meta.get("name", ""),
+            "price": meta.get("price", 0),
+            "category": meta.get("category", ""),
+            "url": meta.get("url", f"/product/{pid}"),
+        })
+
+    yield {"done": True, "sources": sources, "full_answer": answer}
