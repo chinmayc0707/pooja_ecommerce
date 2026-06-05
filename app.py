@@ -57,7 +57,7 @@ AUTO_SYNC_PINECONE = os.environ.get('AUTO_SYNC_PINECONE', '').strip().lower() in
 PASSWORD_HASH_METHOD = 'pbkdf2:sha256'
 
 # Database Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI') or 'sqlite:///:memory:'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI') or 'sqlite:///local.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['ACCOUNT_STORE'] = ACCOUNT_STORE
 app.config['DATA_STORE'] = DATA_STORE
@@ -1339,7 +1339,9 @@ def chat():
 
     try:
         from rag.rag_engine import ask
-        result = ask(question, history)
+        user = get_current_user()
+        user_id = user.id if user else None
+        result = ask(question, history, user_id=user_id)
         return jsonify(result)
     except ImportError as e:
         app.logger.error(f'RAG import error: {e}')
@@ -1376,20 +1378,24 @@ def chat_stream():
     if not question:
         return jsonify({'error': 'No question provided.'}), 400
 
+    user = get_current_user()
+    uid = user.id if user else None
+
     def generate():
-        try:
-            from rag.rag_engine import ask_stream
-            for event in ask_stream(question, history):
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-        except ImportError as e:
-            app.logger.error(f'RAG import error: {e}')
-            yield f"data: {json.dumps({'error': f'AI dependency missing: {e}'})}\n\n"
-        except MemoryError:
-            app.logger.error('RAG out of memory loading model')
-            yield f"data: {json.dumps({'error': 'Server ran out of memory.'})}\n\n"
-        except Exception as e:
-            app.logger.error(f'RAG stream error ({type(e).__name__}): {e}')
-            yield f"data: {json.dumps({'error': f'AI assistant error: {e}'})}\n\n"
+        with app.app_context():
+            try:
+                from rag.rag_engine import ask_stream
+                for event in ask_stream(question, history, user_id=uid):
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            except ImportError as e:
+                app.logger.error(f'RAG import error: {e}')
+                yield f"data: {json.dumps({'error': f'AI dependency missing: {e}'})}\n\n"
+            except MemoryError:
+                app.logger.error('RAG out of memory loading model')
+                yield f"data: {json.dumps({'error': 'Server ran out of memory.'})}\n\n"
+            except Exception as e:
+                app.logger.error(f'RAG stream error ({type(e).__name__}): {e}')
+                yield f"data: {json.dumps({'error': f'AI assistant error: {e}'})}\n\n"
 
     return Response(
         generate(),

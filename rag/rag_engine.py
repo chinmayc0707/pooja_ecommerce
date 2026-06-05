@@ -21,6 +21,8 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
+from langchain_core.tools import tool
+from langchain_core.messages import ToolMessage
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 logger = logging.getLogger(__name__)
@@ -227,6 +229,70 @@ def _extract_cited_ids(text: str) -> list[int]:
     return []
 
 
+# ─── Cart tools (agentic) ─────────────────────────────────────────────────────
+def _make_cart_tools(user_id: int):
+    """Create LangChain tools for cart management, bound to a specific user."""
+
+    @tool
+    def add_to_cart(product_id: int) -> str:
+        """Add a product to the user's shopping cart by its Product ID.
+        Use this when the user asks to add an item to their cart, buy something, or order a product.
+        The Product ID is shown in the CONTEXT section."""
+        from app import app as flask_app, CartItem, db, _get_product_by_id
+        with flask_app.app_context():
+            product = _get_product_by_id(product_id)
+            if not product:
+                return f"Error: Product #{product_id} not found."
+            item = CartItem.query.filter_by(user_id=user_id, session_id=None, product_id=product_id).first()
+            if item:
+                item.quantity += 1
+            else:
+                item = CartItem(user_id=user_id, session_id=None, product_id=product_id, quantity=1)
+                db.session.add(item)
+            db.session.commit()
+            return f"Added '{product.name}' (₹{float(product.price):.2f}) to cart. Quantity: {item.quantity}."
+
+    @tool
+    def remove_from_cart(product_id: int) -> str:
+        """Remove a product from the user's shopping cart by its Product ID.
+        Use this when the user asks to remove or delete an item from their cart."""
+        from app import app as flask_app, CartItem, db, _get_product_by_id
+        with flask_app.app_context():
+            item = CartItem.query.filter_by(user_id=user_id, session_id=None, product_id=product_id).first()
+            if not item:
+                return f"Product #{product_id} is not in the cart."
+            product = _get_product_by_id(product_id)
+            name = product.name if product else f"Product #{product_id}"
+            db.session.delete(item)
+            db.session.commit()
+            return f"Removed '{name}' from cart."
+
+    @tool
+    def view_cart() -> str:
+        """View all items currently in the user's shopping cart with quantities and prices.
+        Use this when the user asks to see their cart, check what they've added, or view their order."""
+        from app import app as flask_app, CartItem, _get_products_by_ids
+        with flask_app.app_context():
+            cart_rows = CartItem.query.filter_by(user_id=user_id, session_id=None).all()
+            if not cart_rows:
+                return "The cart is empty."
+            product_ids = [row.product_id for row in cart_rows]
+            products = _get_products_by_ids(product_ids)
+            product_map = {p.id: p for p in products}
+            lines = []
+            total = 0
+            for row in cart_rows:
+                p = product_map.get(row.product_id)
+                if p:
+                    subtotal = float(p.price) * row.quantity
+                    total += subtotal
+                    lines.append(f"- {p.name} x{row.quantity} — ₹{subtotal:.2f}")
+            lines.append(f"\nCart Total: ₹{total:.2f}")
+            return "\n".join(lines)
+
+    return [add_to_cart, remove_from_cart, view_cart]
+
+
 # ─── Agentic system prompt ────────────────────────────────────────────────────
 SYSTEM_PROMPT = """You are a knowledgeable and warm shopping assistant for Pooja Ecommerce, \
 an online store selling authentic Indian devotional and ritual products.
@@ -240,13 +306,30 @@ Please browse our full collection on the homepage."
 4. Always mention the exact product name and price (as shown in the context) when recommending.
 5. Be warm, respectful, and concise — like a knowledgeable store assistant.
 6. Do not answer questions unrelated to the store or its products.
-
+{cart_instructions}
 CONTEXT (retrieved products from our catalog):
 {context}"""
 
 
+CART_INSTRUCTIONS_LOGGED_IN = """
+SHOPPING CART:
+- You have tools to manage the user's cart: add_to_cart, remove_from_cart, view_cart.
+- When the user wants to add a product, use the Product ID from the CONTEXT above.
+- When the user asks to see their cart or check their order, use view_cart.
+- After adding or removing items, confirm the action and mention the product name and current cart state.
+- ALWAYS use the tools for cart operations — never pretend to add items without calling the tool.
+"""
+
+CART_INSTRUCTIONS_GUEST = """
+SHOPPING CART:
+- You do NOT have cart management tools because the user is not logged in.
+- If they ask to add items to cart or manage their cart, politely tell them to log in first.
+- You can say: "Please log in to add items to your cart. You can log in from the top-right corner of the page."
+"""
+
+
 # ─── Public API ───────────────────────────────────────────────────────────────
-def ask(question: str, chat_history: list[dict] | None = None) -> dict:
+def ask(question: str, chat_history: list[dict] | None = None, user_id: int | None = None) -> dict:
     """
     Run the RAG pipeline.
 
@@ -288,10 +371,12 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
         elif msg.get("role") == "assistant":
             lc_history.append(AIMessage(content=msg["content"]))
 
+    cart_instructions = CART_INSTRUCTIONS_LOGGED_IN if user_id else CART_INSTRUCTIONS_GUEST
     invoke_input = {
         "context": context,
         "input": question,
         "chat_history": lc_history,
+        "cart_instructions": cart_instructions,
     }
 
     # 4. Call LLM (plain text — NO tool calling / structured output)
@@ -333,27 +418,29 @@ def ask(question: str, chat_history: list[dict] | None = None) -> dict:
     return {"answer": answer, "sources": sources}
 
 
-def ask_stream(question: str, chat_history: list[dict] | None = None):
+def ask_stream(question: str, chat_history: list[dict] | None = None, user_id: int | None = None):
     """
-    Streaming version of ask(). Yields dicts:
+    Streaming agentic RAG pipeline. Yields dicts:
       {"token": str}     — for each LLM token
-      {"done": True, "sources": [...], "full_answer": str} — final event
+      {"done": True, "sources": [...], "full_answer": str, "cart_changed": bool} — final event
     """
     chat_history = chat_history or []
 
-    # 1. Retrieve relevant products from Pinecone, with Supabase catalog fallback.
+    # 1. Retrieve relevant products
     docs = _retrieve_docs(question)
-
-    # 2. Build a fast ID -> metadata lookup from retrieved docs
     doc_lookup: dict[int, dict] = {}
     for doc in docs:
         pid = doc.metadata.get("product_id")
         if pid is not None:
             doc_lookup[int(pid)] = doc.metadata
-
     context = _format_docs(docs)
 
-    # 3. Build prompt (plain text, no tool calling)
+    # 2. Build tools (only if logged in)
+    tools = _make_cart_tools(user_id) if user_id else []
+    tool_map = {t.name: t for t in tools}
+    cart_instructions = CART_INSTRUCTIONS_LOGGED_IN if user_id else CART_INSTRUCTIONS_GUEST
+
+    # 3. Build prompt
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
         MessagesPlaceholder("chat_history"),
@@ -371,23 +458,53 @@ def ask_stream(question: str, chat_history: list[dict] | None = None):
         "context": context,
         "input": question,
         "chat_history": lc_history,
+        "cart_instructions": cart_instructions,
     }
 
-    # 4. Stream LLM tokens
+    # 4. Prepare LLM with tools
     llm = _get_llm()
-    chain = prompt | llm
-    full_raw = ""
-    for chunk in chain.stream(invoke_input):
-        token = chunk.content if hasattr(chunk, "content") else str(chunk)
-        if token:
-            full_raw += token
-            yield {"token": token}
+    llm_with_tools = llm.bind_tools(tools) if tools else llm
 
-    # 5. Compute sources from accumulated answer
+    # Format prompt into messages for the agentic loop
+    messages = list(prompt.format_messages(**invoke_input))
+
+    # 5. Agentic loop: stream → check tool calls → execute → repeat
+    cart_changed = False
+    full_raw = ""
+    max_rounds = 5
+
+    for _round in range(max_rounds):
+        accumulated = None
+
+        for chunk in llm_with_tools.stream(messages):
+            token = chunk.content if hasattr(chunk, "content") else ""
+            if token:
+                full_raw += token
+                yield {"token": token}
+            # Accumulate full response for tool call detection
+            accumulated = chunk if accumulated is None else accumulated + chunk
+
+        # Check for tool calls
+        if not accumulated or not getattr(accumulated, "tool_calls", None):
+            break  # No tool calls — final response streamed
+
+        # Tool calls detected — execute them
+        messages.append(accumulated)
+        for tc in accumulated.tool_calls:
+            tool_fn = tool_map.get(tc["name"])
+            if tool_fn:
+                try:
+                    result = tool_fn.invoke(tc["args"])
+                except Exception as e:
+                    result = f"Tool error: {e}"
+                messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+                if tc["name"] in ("add_to_cart", "remove_from_cart"):
+                    cart_changed = True
+
+    # 6. Compute sources
     answer = _clean_answer(full_raw)
     cited_ids = _extract_cited_ids(full_raw)
     cited_ids = [pid for pid in cited_ids if pid in doc_lookup]
-
     if not cited_ids:
         cited_ids = [
             pid for pid, meta in doc_lookup.items()
@@ -405,4 +522,4 @@ def ask_stream(question: str, chat_history: list[dict] | None = None):
             "url": meta.get("url", f"/product/{pid}"),
         })
 
-    yield {"done": True, "sources": sources, "full_answer": answer}
+    yield {"done": True, "sources": sources, "full_answer": answer, "cart_changed": cart_changed}
