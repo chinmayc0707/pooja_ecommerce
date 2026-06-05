@@ -497,9 +497,14 @@ def ask_stream(question: str, chat_history: list[dict] | None = None, user_id: i
                     result = tool_fn.invoke(tc["args"])
                 except Exception as e:
                     result = f"Tool error: {e}"
-                messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
-                if tc["name"] in ("add_to_cart", "remove_from_cart"):
+                
+                tool_msg = ToolMessage(content=str(result), tool_call_id=tc["id"])
+                messages.append(tool_msg)
+                
+                # Emit real-time cart update event if cart was modified
+                if tc["name"] in ["add_to_cart", "remove_from_cart"] and not str(result).startswith("Tool error"):
                     cart_changed = True
+                    yield {"cart_changed": True}
 
     # 6. Compute sources
     answer = _clean_answer(full_raw)

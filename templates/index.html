@@ -842,18 +842,19 @@
                             // Render markdown live with cursor
                             renderStreamingMarkdown(accumulated);
                         }
+                        
+                        // Update cart badge immediately if the LLM modified the cart
+                        if (event.cart_changed) {
+                            fetch('/api/cart_count').then(r => r.json()).then(d => {
+                                const badge = document.getElementById('cart-count');
+                                if (badge) badge.textContent = d.cart_count;
+                            }).catch(() => {});
+                        }
 
                         if (event.done) {
                             sources = event.sources || [];
                             if (event.full_answer) {
                                 accumulated = event.full_answer;
-                            }
-                            // Update cart badge if the LLM modified the cart
-                            if (event.cart_changed) {
-                                fetch('/api/cart_count').then(r => r.json()).then(d => {
-                                    const badge = document.getElementById('cart-count');
-                                    if (badge) badge.textContent = d.cart_count;
-                                }).catch(() => {});
                             }
                         }
                     }
