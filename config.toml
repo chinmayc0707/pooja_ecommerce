@@ -1,0 +1,160 @@
+model = "gpt-oss"
+model_reasoning_effort = "xhigh"
+oss_provider = "ollama"
+
+
+
+
+notify = [ "C:\\Users\\Chinmay C Bhat\\.codex\\plugins\\cache\\openai-bundled\\computer-use\\26.527.60818\\node_modules\\@oai\\sky\\bin\\windows\\codex-computer-use.exe", "turn-ended" ]
+
+
+
+profile = "ollama-launch-codex-app"
+
+model_provider = "ollama-launch-codex-app"
+
+model_catalog_json = "C:\\Users\\Chinmay C Bhat\\.codex\\ollama-launch-models.json"
+
+[windows]
+sandbox = "elevated"
+
+[mcp_servers.playwright]
+args = ["@playwright/mcp@latest"]
+command = "npx"
+
+[mcp_servers.notion]
+url = "https://mcp.notion.com/mcp"
+
+[features]
+multi_agent = true
+
+[plugins."github@openai-curated"]
+enabled = true
+
+[plugins."render@openai-curated"]
+enabled = true
+
+[plugins."build-web-apps@openai-curated"]
+enabled = true
+
+[plugins."hugging-face@openai-curated"]
+enabled = true
+
+[plugins."slack@openai-curated"]
+enabled = true
+
+[plugins."documents@openai-primary-runtime"]
+enabled = true
+
+[plugins."spreadsheets@openai-primary-runtime"]
+enabled = true
+
+[plugins."presentations@openai-primary-runtime"]
+enabled = true
+
+[plugins."figma@openai-curated"]
+enabled = true
+
+[plugins."netlify@openai-curated"]
+enabled = true
+
+[plugins."weatherpromise@openai-curated"]
+enabled = true
+
+[plugins."zoom@openai-curated"]
+enabled = true
+
+[plugins."browser@openai-bundled"]
+enabled = true
+
+[plugins."computer-use@openai-bundled"]
+enabled = true
+
+[projects.'C:\programming\playright']
+trust_level = "trusted"
+
+[projects.'C:\Users\Chinmay C Bhat']
+trust_level = "trusted"
+
+[projects.'C:\programming\ai agents\installationAgent']
+trust_level = "trusted"
+
+[projects.'C:\pyramid\interiordesign']
+trust_level = "trusted"
+
+[projects.'C:\pyramid\telegram']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\portfolio']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\web app']
+trust_level = "trusted"
+
+[projects.'c:\users\chinmay c bhat\documents\new project']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\client_website\codex']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\website_company']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\web_scrapper\demo']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\web_scrapper\codex']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\pooja ecommerce\codex']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\web_scrapper\void']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\web_scrapper\chatgpt_api_web']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\pooja ecommerce\void']
+trust_level = "trusted"
+
+[projects.'c:\pyramid\telegram-jules']
+trust_level = "trusted"
+
+[profiles.ollama-launch]
+openai_base_url = "https://346f-34-32-212-144.ngrok-free.app:443/v1/"
+model_provider = "ollama-launch"
+forced_login_method = "api"
+[model_providers.ollama-launch]
+name = "Ollama"
+base_url = "https://346f-34-32-212-144.ngrok-free.app:443/v1/"
+wire_api = "responses"
+[marketplaces.openai-primary-runtime]
+last_updated = "2026-06-02T06:00:44Z"
+source_type = "local"
+source = '\\?\C:\Users\Chinmay C Bhat\.cache\codex-runtimes\codex-primary-runtime\plugins\openai-primary-runtime'
+
+[marketplaces.openai-bundled]
+last_updated = "2026-06-05T07:01:59Z"
+source_type = "local"
+source = '\\?\C:\Users\Chinmay C Bhat\.codex\.tmp\bundled-marketplaces\openai-bundled'
+
+[tui.model_availability_nux]
+"gpt-5.5" = 3
+
+[desktop.open-in-target-preferences]
+global = "fileManager"
+
+[desktop.open-in-target-preferences.perPath]
+'C:\programming\skyvern codex' = "fileManager"
+
+
+[profiles.ollama-launch-codex-app]
+model = "gpt-oss"
+openai_base_url = "https://346f-34-32-212-144.ngrok-free.app:443/v1/"
+model_provider = "ollama-launch-codex-app"
+model_catalog_json = "C:\\Users\\Chinmay C Bhat\\.codex\\ollama-launch-models.json"
+[model_providers.ollama-launch-codex-app]
+name = "Ollama"
+base_url = "https://346f-34-32-212-144.ngrok-free.app:443/v1/"
+wire_api = "responses"

@@ -290,7 +290,21 @@ def _make_cart_tools(user_id: int):
             lines.append(f"\nCart Total: ₹{total:.2f}")
             return "\n".join(lines)
 
-    return [add_to_cart, remove_from_cart, view_cart]
+    @tool
+    def clear_cart() -> str:
+        """Clear all items from the user's shopping cart.
+        Use this when the user asks to empty, clear, or reset their cart."""
+        from app import app as flask_app, CartItem, db
+        with flask_app.app_context():
+            cart_rows = CartItem.query.filter_by(user_id=user_id, session_id=None).all()
+            if not cart_rows:
+                return "The cart is already empty."
+            for row in cart_rows:
+                db.session.delete(row)
+            db.session.commit()
+            return "Successfully cleared all items from the cart."
+
+    return [add_to_cart, remove_from_cart, view_cart, clear_cart]
 
 
 # ─── Agentic system prompt ────────────────────────────────────────────────────
@@ -313,10 +327,11 @@ CONTEXT (retrieved products from our catalog):
 
 CART_INSTRUCTIONS_LOGGED_IN = """
 SHOPPING CART:
-- You have tools to manage the user's cart: add_to_cart, remove_from_cart, view_cart.
+- You have tools to manage the user's cart: add_to_cart, remove_from_cart, view_cart, clear_cart.
 - When the user wants to add a product, use the Product ID from the CONTEXT above.
 - When the user asks to see their cart or check their order, use view_cart.
-- After adding or removing items, confirm the action and mention the product name and current cart state.
+- When the user asks to empty or clear their cart, use clear_cart.
+- After adding, removing, or clearing items, confirm the action and mention the current cart state.
 - ALWAYS use the tools for cart operations — never pretend to add items without calling the tool.
 """
 
@@ -502,7 +517,7 @@ def ask_stream(question: str, chat_history: list[dict] | None = None, user_id: i
                 messages.append(tool_msg)
                 
                 # Emit real-time cart update event if cart was modified
-                if tc["name"] in ["add_to_cart", "remove_from_cart"] and not str(result).startswith("Tool error"):
+                if tc["name"] in ["add_to_cart", "remove_from_cart", "clear_cart"] and not str(result).startswith("Tool error"):
                     cart_changed = True
                     yield {"cart_changed": True}
 
