@@ -333,6 +333,7 @@ SHOPPING CART:
 - When the user asks to empty or clear their cart, use clear_cart.
 - After adding, removing, or clearing items, confirm the action and mention the current cart state.
 - ALWAYS use the tools for cart operations — never pretend to add items without calling the tool.
+- Before adding items to cart, clarify quantity of products to be added with the user.
 """
 
 CART_INSTRUCTIONS_GUEST = """
