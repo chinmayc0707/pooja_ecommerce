@@ -2,13 +2,19 @@
 
 This directory contains the core application logic, database models, and routes for the Pooja Store ecommerce application.
 
+## Deployment
+
+This project is deployed on Render and is accessible at: **[https://pooja-ecommerce.onrender.com/](https://pooja-ecommerce.onrender.com/)**
+
 ## Structure
 
 - `app.py`: The main entry point for the Flask application. It configures Supabase-backed account, product, and settings storage and defines all HTTP routes.
 - `requirements.txt`: Python package dependencies.
+- `render.yaml`: Configuration file for deploying the application on Render.
+- `config.toml`: Environment and application configuration settings.
 - `setup_pinecone.py`: Script to initialize the Pinecone vector index for semantic search functionality.
 - `supabase_schema.sql`: SQL for the Supabase `accounts`, `products`, and `settings` tables used by the app.
-- `rag/`: Submodule handling the Retrieval-Augmented Generation functionality.
+- `rag/`: Submodule handling the Retrieval-Augmented Generation (RAG) functionality. This includes integration with Langchain and Pinecone for vector embeddings and semantic search.
 - `templates/`: Contains HTML templates for rendering the frontend views.
 - `static/`: Contains static assets like images, CSS, and JS. Admin product uploads are stored in Supabase Storage when Supabase credentials are configured.
 
