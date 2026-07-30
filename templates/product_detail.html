@@ -165,7 +165,7 @@
                     </svg>
                 </a>
                 <ul class="dropdown-menu">
-                    {% for category in categories_list %}
+                    {% for category in get_categories_list() %}
                     <li><a href="/#{{ category.lower().replace(' ', '-') }}">{{ category }}</a></li>
                     {% endfor %}
                 </ul>

@@ -852,13 +852,24 @@ def admin_required(f):
     return decorated
 
 
+def get_categories_list():
+    if hasattr(g, '_categories_list'):
+        return g._categories_list
+    try:
+        g._categories_list = _get_product_categories()
+    except Exception as exc:
+        app.logger.warning(f'Unable to load categories: {exc}')
+        g._categories_list = []
+    return g._categories_list
+
+
 @app.context_processor
 def inject_globals():
     return dict(
         current_user=get_current_user(),
         catalog_image_url=_catalog_image_url,
         image_placeholder_url=_image_placeholder_url,
-        categories_list=_get_product_categories(),
+        get_categories_list=get_categories_list,
     )
 
 
