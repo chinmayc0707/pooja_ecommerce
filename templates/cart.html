@@ -87,12 +87,12 @@
         <ul class="nav-links">
             <li><a href="/">Home</a></li>
             <li class="dropdown">
-                <a href="#" class="dropdown-trigger" aria-haspopup="true" aria-expanded="false">
+                <button type="button" class="dropdown-trigger" aria-haspopup="true" aria-expanded="false">
                     Categories
                     <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
                     </svg>
-                </a>
+                </button>
                 <ul class="dropdown-menu">
                     {% for category in get_categories_list() %}
                     <li><a href="/#{{ category.lower().replace(' ', '-') }}">{{ category }}</a></li>

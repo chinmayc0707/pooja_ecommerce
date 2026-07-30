@@ -8,6 +8,19 @@
     align-items: center;
     gap: 4px;
     cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--colors-slate);
+    transition: color 0.2s;
+    outline: none;
+}
+.dropdown-trigger:hover,
+.dropdown-trigger:focus {
+    color: var(--colors-primary);
 }
 .chevron-icon {
     width: 14px;
@@ -16,7 +29,8 @@
     fill: none;
     transition: transform 0.2s ease;
 }
-.dropdown:hover .chevron-icon {
+.dropdown:hover .chevron-icon,
+.dropdown:focus-within .chevron-icon {
     transform: rotate(180deg);
 }
 .dropdown-menu {
@@ -38,7 +52,8 @@
     transform: translateY(8px);
     transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
 }
-.dropdown:hover .dropdown-menu {
+.dropdown:hover .dropdown-menu,
+.dropdown:focus-within .dropdown-menu {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
@@ -63,6 +78,6 @@
     display: none !important;
 }
 /* Ensure no line under the dropdown container itself */
-.dropdown > a::after {
+.dropdown > button::after {
     display: none !important;
 }
