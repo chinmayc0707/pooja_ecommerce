@@ -858,6 +858,7 @@ def inject_globals():
         current_user=get_current_user(),
         catalog_image_url=_catalog_image_url,
         image_placeholder_url=_image_placeholder_url,
+        categories_list=_get_product_categories(),
     )
 
 

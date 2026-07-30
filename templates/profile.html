@@ -134,6 +134,75 @@
             margin-bottom: 24px;
             text-align: center;
         }
+
+        /* Categories Dropdown Styling */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-trigger {
+            display: flex !important;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+        .chevron-icon {
+            width: 14px;
+            height: 14px;
+            stroke: currentColor;
+            fill: none;
+            transition: transform 0.2s ease;
+        }
+        .dropdown:hover .chevron-icon {
+            transform: rotate(180deg);
+        }
+        .dropdown-menu {
+            display: block;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: var(--colors-canvas);
+            border: 1px solid var(--colors-hairline-soft);
+            border-radius: var(--rounded-md);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+            min-width: 180px;
+            z-index: 1000;
+            list-style: none;
+            padding: 8px 0;
+            margin: 0;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(8px);
+            transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+        }
+        .dropdown:hover .dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        .dropdown-menu li {
+            width: 100%;
+        }
+        .dropdown-menu a {
+            display: block !important;
+            padding: 10px 16px !important;
+            color: var(--colors-slate) !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            text-decoration: none !important;
+            transition: background-color 0.2s, color 0.2s !important;
+        }
+        .dropdown-menu a:hover {
+            background-color: var(--colors-cream) !important;
+            color: var(--colors-primary) !important;
+        }
+        .dropdown-menu a::after {
+            display: none !important;
+        }
+        /* Ensure no line under the dropdown container itself */
+        .dropdown > a::after {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -141,6 +210,19 @@
         <a href="/" class="logo">POOJA ECOMMERCE_</a>
         <ul class="nav-links">
             <li><a href="/">Home</a></li>
+            <li class="dropdown">
+                <a href="#" class="dropdown-trigger" aria-haspopup="true" aria-expanded="false">
+                    Categories
+                    <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </a>
+                <ul class="dropdown-menu">
+                    {% for category in categories_list %}
+                    <li><a href="/#{{ category.lower().replace(' ', '-') }}">{{ category }}</a></li>
+                    {% endfor %}
+                </ul>
+            </li>
         </ul>
     </nav>
     <div class="profile-card">
