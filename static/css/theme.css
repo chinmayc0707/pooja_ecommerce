@@ -1,0 +1,293 @@
+/* Global Theme System for Pooja Ecommerce */
+
+:root {
+    --colors-primary: #FF5C00;
+    --colors-primary-deep: #CC4A00;
+    --colors-sunshine-700: #FF8C00;
+    --colors-sunshine-500: #FFA500;
+    --colors-yellow-saturated: #FFD700;
+    --colors-cream: #FFF9E5;
+    --colors-cream-soft: #FFFCF2;
+    --colors-beige-deep: #E5DCC3;
+    --colors-canvas: #FFFFFF;
+    --colors-hairline-soft: #EEEEEE;
+    --colors-hairline-strong: #DDDDDD;
+    --colors-ink: #1A1A1A;
+    --colors-ink-tint: #333333;
+    --colors-slate: #666666;
+    --colors-on-dark: #FFFFFF;
+    --rounded-md: 8px;
+    --rounded-lg: 12px;
+
+    --theme-toggle-bg: #F4F0E6;
+    --theme-toggle-border: #E0D6C3;
+    --theme-toggle-hover: #EBE4D5;
+    --theme-toggle-color: #333333;
+    --input-bg: #FFFFFF;
+    --input-border: #E5DCC3;
+    --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] {
+    --colors-primary: #FF7528;
+    --colors-primary-deep: #FF5C00;
+    --colors-sunshine-700: #FF9433;
+    --colors-sunshine-500: #FFAB40;
+    --colors-yellow-saturated: #FFD54F;
+    --colors-cream: rgb(18, 18, 18);
+    --colors-cream-soft: rgb(12, 12, 12);
+    --colors-beige-deep: rgb(34, 34, 34);
+    --colors-canvas: rgb(0, 0, 0);
+    --colors-hairline-soft: rgb(24, 24, 24);
+    --colors-hairline-strong: rgb(40, 40, 40);
+    --colors-ink: rgb(243, 244, 246);
+    --colors-ink-tint: rgb(229, 231, 235);
+    --colors-slate: rgb(156, 163, 175);
+    --colors-on-dark: #FFFFFF;
+
+    --theme-toggle-bg: rgb(24, 24, 24);
+    --theme-toggle-border: rgb(40, 40, 40);
+    --theme-toggle-hover: rgb(36, 36, 36);
+    --theme-toggle-color: rgb(243, 244, 246);
+    --input-bg: rgb(16, 16, 16);
+    --input-border: rgb(40, 40, 40);
+    --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+}
+
+/* Base theme transition */
+html,
+body {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Force body and html background to pitch black in dark mode */
+html[data-theme="dark"],
+[data-theme="dark"] body {
+    background-color: rgb(0, 0, 0) !important;
+    color: rgb(243, 244, 246) !important;
+}
+
+/* Theme Toggle Button Styling */
+.theme-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--theme-toggle-border);
+    background-color: var(--theme-toggle-bg);
+    color: var(--theme-toggle-color);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+    background-color: var(--theme-toggle-hover);
+    transform: scale(1.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.theme-toggle-btn .sun-icon {
+    display: none;
+}
+
+.theme-toggle-btn .moon-icon {
+    display: block;
+}
+
+[data-theme="dark"] .theme-toggle-btn .sun-icon {
+    display: block;
+    color: #FFB84D;
+}
+
+[data-theme="dark"] .theme-toggle-btn .moon-icon {
+    display: none;
+}
+
+/* Dark Theme Comprehensive Overrides */
+[data-theme="dark"] nav {
+    background: rgb(12, 12, 12) !important;
+    border-bottom-color: rgb(34, 34, 34) !important;
+}
+
+[data-theme="dark"] .logo {
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .dropdown-trigger {
+    color: rgb(156, 163, 175) !important;
+}
+
+[data-theme="dark"] .dropdown-trigger:hover {
+    color: var(--colors-primary) !important;
+}
+
+[data-theme="dark"] .sidebar {
+    background: rgb(12, 12, 12) !important;
+    border-right-color: rgb(34, 34, 34) !important;
+}
+
+[data-theme="dark"] .main-content {
+    background-color: rgb(0, 0, 0) !important;
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .card,
+[data-theme="dark"] .card-cream,
+[data-theme="dark"] .login-card,
+[data-theme="dark"] .profile-card,
+[data-theme="dark"] .summary-card,
+[data-theme="dark"] .settings-section {
+    background-color: rgb(18, 18, 18) !important;
+    border-color: rgb(34, 34, 34) !important;
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .card h3,
+[data-theme="dark"] .card .price,
+[data-theme="dark"] .hero-content h1,
+[data-theme="dark"] .section-header h2,
+[data-theme="dark"] .product-info h1,
+[data-theme="dark"] .price-tag,
+[data-theme="dark"] .header h1,
+[data-theme="dark"] .settings-section h3,
+[data-theme="dark"] .sidebar-header h2 {
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .card p,
+[data-theme="dark"] .hero-content p,
+[data-theme="dark"] .description,
+[data-theme="dark"] .form-group label {
+    color: rgb(156, 163, 175) !important;
+}
+
+[data-theme="dark"] .product-img-container,
+[data-theme="dark"] .product-image-container {
+    background-color: rgb(12, 12, 12) !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+    background-color: rgb(16, 16, 16) !important;
+    color: rgb(243, 244, 246) !important;
+    border-color: rgb(40, 40, 40) !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+    color: rgb(156, 163, 175) !important;
+}
+
+[data-theme="dark"] .cart-btn {
+    color: rgb(229, 231, 235) !important;
+    border-color: var(--colors-primary) !important;
+}
+
+[data-theme="dark"] .cart-badge {
+    border-color: rgb(0, 0, 0) !important;
+}
+
+[data-theme="dark"] .btn-secondary {
+    color: rgb(243, 244, 246) !important;
+    border-color: rgb(40, 40, 40) !important;
+}
+
+[data-theme="dark"] .btn-secondary:hover {
+    background-color: rgb(28, 28, 28) !important;
+}
+
+[data-theme="dark"] .category-tag {
+    background-color: rgb(28, 28, 28) !important;
+    border-color: rgb(40, 40, 40) !important;
+}
+
+[data-theme="dark"] #chat-panel {
+    background: rgb(18, 18, 18) !important;
+    border-color: rgb(34, 34, 34) !important;
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .chat-messages::-webkit-scrollbar-thumb {
+    background: rgb(40, 40, 40);
+}
+
+[data-theme="dark"] .msg-bubble.bot {
+    background: rgb(28, 28, 28) !important;
+    color: rgb(243, 244, 246) !important;
+    border-color: rgb(40, 40, 40) !important;
+}
+
+[data-theme="dark"] .msg-bubble.bot strong {
+    color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .msg-bubble.bot blockquote {
+    color: rgb(215, 215, 215) !important;
+}
+
+[data-theme="dark"] .chat-input-row {
+    border-top-color: rgb(34, 34, 34) !important;
+}
+
+[data-theme="dark"] #chat-input {
+    background: rgb(10, 10, 10) !important;
+    color: rgb(243, 244, 246) !important;
+    border-color: rgb(40, 40, 40) !important;
+}
+
+[data-theme="dark"] .source-card {
+    background: rgb(24, 24, 24) !important;
+    border-color: rgb(40, 40, 40) !important;
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .source-card:hover {
+    background: rgb(32, 32, 32) !important;
+    border-color: var(--colors-primary) !important;
+}
+
+[data-theme="dark"] .source-card-body .source-name {
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .dropdown-menu {
+    background-color: rgb(18, 18, 18) !important;
+    border-color: rgb(34, 34, 34) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8) !important;
+}
+
+[data-theme="dark"] .dropdown-menu a {
+    color: rgb(229, 231, 235) !important;
+}
+
+[data-theme="dark"] .dropdown-menu a:hover {
+    background-color: rgb(32, 32, 32) !important;
+    color: var(--colors-primary) !important;
+}
+
+[data-theme="dark"] .cart-table th,
+[data-theme="dark"] .cart-table td {
+    border-bottom-color: rgb(34, 34, 34) !important;
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .quantity-btn {
+    background: rgb(10, 10, 10) !important;
+    border-color: rgb(34, 34, 34) !important;
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .quantity-btn:hover {
+    background: rgb(28, 28, 28) !important;
+}
+
+[data-theme="dark"] footer {
+    background-color: rgb(12, 12, 12) !important;
+    color: rgb(243, 244, 246) !important;
+}
