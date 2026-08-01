@@ -16,7 +16,7 @@ bind = f"0.0.0.0:{os.environ.get('PORT', '10000')}"
 workers = 2
 
 # CRITICAL: timeout must be long enough for the OpenRouter free-tier LLM
-# to respond. Free models (e.g. gemma-4-31b-it:free) can take 30-90 seconds.
+# to respond. The OpenRouter free-model router can take 30-90 seconds.
 # Default gunicorn timeout is 30s which causes WORKER TIMEOUT kills.
 timeout = 180
 

@@ -27,6 +27,12 @@ from langchain_core.messages import ToolMessage
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 logger = logging.getLogger(__name__)
 
+OPENROUTER_DEFAULT_MODEL = "openrouter/free"
+# This was previously used in the project configuration, but it is not a
+# published OpenRouter model identifier.  Keep the migration here so existing
+# Render environment variables do not leave the chat unavailable after deploy.
+RETIRED_OPENROUTER_MODELS = {"google/gemma-4-31b-it:free"}
+
 
 
 # ─── Pinecone vector store (lazy singleton) ───────────────────────────────────
@@ -116,7 +122,7 @@ def _retrieve_docs(question: str) -> list[Document]:
 # ─── Pluggable LLM factory ────────────────────────────────────────────────────
 def _get_llm():
     provider = os.getenv("LLM_PROVIDER", "openai").lower()
-    model_name = os.getenv("LLM_MODEL_NAME", "")
+    model_name = os.getenv("LLM_MODEL_NAME", "").strip()
 
     if provider == "openai":
         from langchain_openai import ChatOpenAI
@@ -126,9 +132,18 @@ def _get_llm():
             api_key=os.getenv("OPENAI_API_KEY"),
         )
     elif provider == "openrouter":
+        if model_name in RETIRED_OPENROUTER_MODELS:
+            logger.warning(
+                "LLM_MODEL_NAME=%r is no longer a valid OpenRouter model; using %s.",
+                model_name,
+                OPENROUTER_DEFAULT_MODEL,
+            )
+            model_name = OPENROUTER_DEFAULT_MODEL
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(
-            model=model_name or "meta-llama/llama-3.1-8b-instruct:free",
+            # The router selects a currently available free model, avoiding a
+            # hard dependency on individual free-model slugs that can retire.
+            model=model_name or OPENROUTER_DEFAULT_MODEL,
             temperature=0.2,
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",

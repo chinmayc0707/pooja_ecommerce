@@ -184,6 +184,55 @@ html[data-theme="dark"],
     color: rgb(156, 163, 175) !important;
 }
 
+/* Tables in Admin & Cart */
+[data-theme="dark"] .table-container {
+    background-color: rgb(18, 18, 18) !important;
+    border-color: rgb(34, 34, 34) !important;
+}
+
+[data-theme="dark"] table,
+[data-theme="dark"] tbody,
+[data-theme="dark"] tr,
+[data-theme="dark"] td {
+    background-color: rgb(18, 18, 18) !important;
+    color: rgb(243, 244, 246) !important;
+    border-bottom-color: rgb(34, 34, 34) !important;
+}
+
+[data-theme="dark"] th,
+[data-theme="dark"] .cart-table th {
+    background-color: rgb(26, 26, 26) !important;
+    color: rgb(229, 231, 235) !important;
+    border-bottom-color: rgb(34, 34, 34) !important;
+}
+
+/* AI Section Card in Admin */
+[data-theme="dark"] .ai-section {
+    background: linear-gradient(135deg, rgb(24, 24, 24), rgb(16, 16, 16)) !important;
+    border-color: rgb(40, 40, 40) !important;
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .ai-section h3 {
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .ai-section p {
+    color: rgb(180, 185, 195) !important;
+}
+
+/* Modals */
+[data-theme="dark"] .modal-content {
+    background-color: rgb(18, 18, 18) !important;
+    border: 1px solid rgb(34, 34, 34) !important;
+    color: rgb(243, 244, 246) !important;
+}
+
+[data-theme="dark"] .modal-content h2,
+[data-theme="dark"] .modal-content label {
+    color: rgb(243, 244, 246) !important;
+}
+
 [data-theme="dark"] .cart-btn {
     color: rgb(229, 231, 235) !important;
     border-color: var(--colors-primary) !important;
